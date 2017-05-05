@@ -37,9 +37,9 @@
 
 #include "tess.h"
 
-/* __gl_projectPolygon( tess ) determines the polygon normal
+/* _tess_projectPolygon( tess ) determines the polygon normal
  * and project vertices onto the plane of the polygon.
  */
-void __gl_projectPolygon( GLUtesselator *tess );
+void _tess_projectPolygon( TessTesselator *tess );
 
 #endif

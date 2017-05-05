@@ -32,7 +32,6 @@
 **
 */
 
-#include "gluos.h"
 #include <stddef.h>
 #include <assert.h>
 #include <limits.h>		/* LONG_MAX */
@@ -46,13 +45,13 @@
 
 #include "priorityq-sort.h"
 
-/* really __gl_pqSortNewPriorityQ */
+/* really _tess_pqSortNewPriorityQ */
 PriorityQ *pqNewPriorityQ( int (*leq)(PQkey key1, PQkey key2) )
 {
   PriorityQ *pq = (PriorityQ *)memAlloc( sizeof( PriorityQ ));
   if (pq == NULL) return NULL;
 
-  pq->heap = __gl_pqHeapNewPriorityQ( leq );
+  pq->heap = _tess_pqHeapNewPriorityQ( leq );
   if (pq->heap == NULL) {
      memFree(pq);
      return NULL;
@@ -60,7 +59,7 @@ PriorityQ *pqNewPriorityQ( int (*leq)(PQkey key1, PQkey key2) )
 
   pq->keys = (PQHeapKey *)memAlloc( INIT_SIZE * sizeof(pq->keys[0]) );
   if (pq->keys == NULL) {
-     __gl_pqHeapDeletePriorityQ(pq->heap);
+     _tess_pqHeapDeletePriorityQ(pq->heap);
      memFree(pq);
      return NULL;
   }
@@ -73,11 +72,11 @@ PriorityQ *pqNewPriorityQ( int (*leq)(PQkey key1, PQkey key2) )
   return pq;
 }
 
-/* really __gl_pqSortDeletePriorityQ */
+/* really _tess_pqSortDeletePriorityQ */
 void pqDeletePriorityQ( PriorityQ *pq )
 {
   assert(pq != NULL); 
-  if (pq->heap != NULL) __gl_pqHeapDeletePriorityQ( pq->heap );
+  if (pq->heap != NULL) _tess_pqHeapDeletePriorityQ( pq->heap );
   if (pq->order != NULL) memFree( pq->order );
   if (pq->keys != NULL) memFree( pq->keys );
   memFree( pq );
@@ -88,7 +87,7 @@ void pqDeletePriorityQ( PriorityQ *pq )
 #define GT(x,y)		(! LEQ(x,y))
 #define Swap(a,b)	do{PQkey *tmp = *a; *a = *b; *b = tmp;}while(0)
 
-/* really __gl_pqSortInit */
+/* really _tess_pqSortInit */
 int pqInit( PriorityQ *pq )
 {
   PQkey **p, **r, **i, **j, *piv;
@@ -156,7 +155,7 @@ int pqInit( PriorityQ *pq )
   }
   pq->max = pq->size;
   pq->initialized = TRUE;
-  __gl_pqHeapInit( pq->heap );	/* always succeeds */
+  _tess_pqHeapInit( pq->heap );	/* always succeeds */
 
 #ifndef NDEBUG
   p = pq->order;
@@ -169,14 +168,14 @@ int pqInit( PriorityQ *pq )
   return 1;
 }
 
-/* really __gl_pqSortInsert */
+/* really _tess_pqSortInsert */
 /* returns LONG_MAX iff out of memory */ 
 PQhandle pqInsert( PriorityQ *pq, PQkey keyNew )
 {
   long curr;
 
   if( pq->initialized ) {
-    return __gl_pqHeapInsert( pq->heap, keyNew );
+    return _tess_pqHeapInsert( pq->heap, keyNew );
   }
   curr = pq->size;
   if( ++ pq->size >= pq->max ) {
@@ -199,19 +198,19 @@ PQhandle pqInsert( PriorityQ *pq, PQkey keyNew )
   return -(curr+1);
 }
 
-/* really __gl_pqSortExtractMin */
+/* really _tess_pqSortExtractMin */
 PQkey pqExtractMin( PriorityQ *pq )
 {
   PQkey sortMin, heapMin;
 
   if( pq->size == 0 ) {
-    return __gl_pqHeapExtractMin( pq->heap );
+    return _tess_pqHeapExtractMin( pq->heap );
   }
   sortMin = *(pq->order[pq->size-1]);
-  if( ! __gl_pqHeapIsEmpty( pq->heap )) {
-    heapMin = __gl_pqHeapMinimum( pq->heap );
+  if( ! _tess_pqHeapIsEmpty( pq->heap )) {
+    heapMin = _tess_pqHeapMinimum( pq->heap );
     if( LEQ( heapMin, sortMin )) {
-      return __gl_pqHeapExtractMin( pq->heap );
+      return _tess_pqHeapExtractMin( pq->heap );
     }
   }
   do {
@@ -220,17 +219,17 @@ PQkey pqExtractMin( PriorityQ *pq )
   return sortMin;
 }
 
-/* really __gl_pqSortMinimum */
+/* really _tess_pqSortMinimum */
 PQkey pqMinimum( PriorityQ *pq )
 {
   PQkey sortMin, heapMin;
 
   if( pq->size == 0 ) {
-    return __gl_pqHeapMinimum( pq->heap );
+    return _tess_pqHeapMinimum( pq->heap );
   }
   sortMin = *(pq->order[pq->size-1]);
-  if( ! __gl_pqHeapIsEmpty( pq->heap )) {
-    heapMin = __gl_pqHeapMinimum( pq->heap );
+  if( ! _tess_pqHeapIsEmpty( pq->heap )) {
+    heapMin = _tess_pqHeapMinimum( pq->heap );
     if( LEQ( heapMin, sortMin )) {
       return heapMin;
     }
@@ -238,17 +237,17 @@ PQkey pqMinimum( PriorityQ *pq )
   return sortMin;
 }
 
-/* really __gl_pqSortIsEmpty */
+/* really _tess_pqSortIsEmpty */
 int pqIsEmpty( PriorityQ *pq )
 {
-  return (pq->size == 0) && __gl_pqHeapIsEmpty( pq->heap );
+  return (pq->size == 0) && _tess_pqHeapIsEmpty( pq->heap );
 }
 
-/* really __gl_pqSortDelete */
+/* really _tess_pqSortDelete */
 void pqDelete( PriorityQ *pq, PQhandle curr )
 {
   if( curr >= 0 ) {
-    __gl_pqHeapDelete( pq->heap, curr );
+    _tess_pqHeapDelete( pq->heap, curr );
     return;
   }
   curr = -(curr+1);

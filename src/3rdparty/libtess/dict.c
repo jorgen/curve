@@ -36,7 +36,7 @@
 #include "dict-list.h"
 #include "memalloc.h"
 
-/* really __gl_dictListNewDict */
+/* really _tess_dictListNewDict */
 Dict *dictNewDict( void *frame,
 		   int (*leq)(void *frame, DictKey key1, DictKey key2) )
 {
@@ -57,7 +57,7 @@ Dict *dictNewDict( void *frame,
   return dict;
 }
 
-/* really __gl_dictListDeleteDict */
+/* really _tess_dictListDeleteDict */
 void dictDeleteDict( Dict *dict )
 {
   DictNode *node, *next;
@@ -69,7 +69,7 @@ void dictDeleteDict( Dict *dict )
   memFree( dict );
 }
 
-/* really __gl_dictListInsertBefore */
+/* really _tess_dictListInsertBefore */
 DictNode *dictInsertBefore( Dict *dict, DictNode *node, DictKey key )
 {
   DictNode *newNode;
@@ -90,7 +90,7 @@ DictNode *dictInsertBefore( Dict *dict, DictNode *node, DictKey key )
   return newNode;
 }
 
-/* really __gl_dictListDelete */
+/* really _tess_dictListDelete */
 void dictDelete( Dict *dict, DictNode *node ) /*ARGSUSED*/
 {
   node->next->prev = node->prev;
@@ -98,7 +98,7 @@ void dictDelete( Dict *dict, DictNode *node ) /*ARGSUSED*/
   memFree( node );
 }
 
-/* really __gl_dictListSearch */
+/* really _tess_dictListSearch */
 DictNode *dictSearch( Dict *dict, DictKey key )
 {
   DictNode *node = &dict->head;

@@ -1,0 +1,631 @@
+/*
+ * SGI FREE SOFTWARE LICENSE B (Version 2.0, Sept. 18, 2008)
+ * Copyright (C) 1991-2000 Silicon Graphics, Inc. All Rights Reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice including the dates of first publication and
+ * either this permission notice or a reference to
+ * http://oss.sgi.com/projects/FreeB/
+ * shall be included in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+ * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * SILICON GRAPHICS, INC. BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF
+ * OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ *
+ * Except as contained in this notice, the name of Silicon Graphics, Inc.
+ * shall not be used in advertising or otherwise to promote the sale, use or
+ * other dealings in this Software without prior written authorization from
+ * Silicon Graphics, Inc.
+ */
+/*
+** Author: Eric Veach, July 1994.
+**
+*/
+
+#include <stddef.h>
+#include <assert.h>
+#include <setjmp.h>
+#include "memalloc.h"
+#include "tess.h"
+#include "mesh.h"
+#include "normal.h"
+#include "sweep.h"
+#include "tessmono.h"
+#include "render.h"
+
+#define TESS_DEFAULT_TOLERANCE 0.0
+#define TESS_MESH		100112	/* void (*)(TessMesh *mesh)	    */
+
+#ifndef TRUE
+#define TRUE 1
+#endif
+#ifndef FALSE
+#define FALSE 0
+#endif
+
+/*ARGSUSED*/ static void TESSAPIENTRY noBegin( TessEnum type ) {}
+/*ARGSUSED*/ static void TESSAPIENTRY noEdgeFlag( bool boundaryEdge ) {}
+/*ARGSUSED*/ static void TESSAPIENTRY noVertex( void *data ) {}
+/*ARGSUSED*/ static void TESSAPIENTRY noEnd( void ) {}
+/*ARGSUSED*/ static void TESSAPIENTRY noError( TessEnum errnum ) {}
+/*ARGSUSED*/ static void TESSAPIENTRY noCombine( double coords[3], void *data[4],
+				    float weight[4], void **dataOut ) {}
+/*ARGSUSED*/ static void TESSAPIENTRY noMesh( TessMesh *mesh ) {}
+
+
+/*ARGSUSED*/ void TESSAPIENTRY _tess_noBeginData( TessEnum type,
+					     void *polygonData ) {}
+/*ARGSUSED*/ void TESSAPIENTRY _tess_noEdgeFlagData( bool boundaryEdge,
+				       void *polygonData ) {}
+/*ARGSUSED*/ void TESSAPIENTRY _tess_noVertexData( void *data,
+					      void *polygonData ) {}
+/*ARGSUSED*/ void TESSAPIENTRY _tess_noEndData( void *polygonData ) {}
+/*ARGSUSED*/ void TESSAPIENTRY _tess_noErrorData( TessEnum errnum,
+					     void *polygonData ) {}
+/*ARGSUSED*/ void TESSAPIENTRY _tess_noCombineData( double coords[3],
+					       void *data[4],
+					       float weight[4],
+					       void **outData,
+					       void *polygonData ) {}
+
+/* Half-edges are allocated in pairs (see mesh.c) */
+typedef struct { TessHalfEdge e, eSym; } EdgePair;
+
+#undef	MAX
+#define MAX(a,b)	((a) > (b) ? (a) : (b))
+#define MAX_FAST_ALLOC	(MAX(sizeof(EdgePair), \
+                         MAX(sizeof(TessVertex),sizeof(TessFace))))
+
+
+Tesselator * TESSAPIENTRY
+gluNewTess( void )
+{
+  Tesselator *tess;
+
+  /* Only initialize fields which can be changed by the api.  Other fields
+   * are initialized where they are used.
+   */
+
+  if (memInit( MAX_FAST_ALLOC ) == 0) {
+     return 0;			/* out of memory */
+  }
+  tess = (Tesselator *)memAlloc( sizeof( Tesselator ));
+  if (tess == NULL) {
+     return 0;			/* out of memory */
+  }
+
+  tess->state = T_DORMANT;
+
+  tess->normal[0] = 0;
+  tess->normal[1] = 0;
+  tess->normal[2] = 0;
+
+  tess->relTolerance = TESS_DEFAULT_TOLERANCE;
+  tess->windingRule = TESS_WINDING_ODD;
+  tess->flagBoundary = FALSE;
+  tess->boundaryOnly = FALSE;
+
+  tess->callBegin = &noBegin;
+  tess->callEdgeFlag = &noEdgeFlag;
+  tess->callVertex = &noVertex;
+  tess->callEnd = &noEnd;
+
+  tess->callError = &noError;
+  tess->callCombine = &noCombine;
+  tess->callMesh = &noMesh;
+
+  tess->callBeginData= &_tess_noBeginData;
+  tess->callEdgeFlagData= &_tess_noEdgeFlagData;
+  tess->callVertexData= &_tess_noVertexData;
+  tess->callEndData= &_tess_noEndData;
+  tess->callErrorData= &_tess_noErrorData;
+  tess->callCombineData= &_tess_noCombineData;
+
+  tess->polygonData= NULL;
+
+  return tess;
+}
+
+static void MakeDormant( Tesselator *tess )
+{
+  /* Return the tessellator to its original dormant state. */
+
+  if( tess->mesh != NULL ) {
+    _tess_meshDeleteMesh( tess->mesh );
+  }
+  tess->state = T_DORMANT;
+  tess->lastEdge = NULL;
+  tess->mesh = NULL;
+}
+
+#define RequireState( tess, s )   if( tess->state != s ) GotoState(tess,s)
+
+static void GotoState( Tesselator *tess, enum TessState newState )
+{
+  while( tess->state != newState ) {
+    /* We change the current state one level at a time, to get to
+     * the desired state.
+     */
+    if( tess->state < newState ) {
+      switch( tess->state ) {
+      case T_DORMANT:
+	CALL_ERROR_OR_ERROR_DATA( TESS_MISSING_BEGIN_POLYGON );
+	gluTessBeginPolygon( tess, NULL );
+	break;
+      case T_IN_POLYGON:
+	CALL_ERROR_OR_ERROR_DATA( TESS_MISSING_BEGIN_CONTOUR );
+	gluTessBeginContour( tess );
+	break;
+      default:
+	 ;
+      }
+    } else {
+      switch( tess->state ) {
+      case T_IN_CONTOUR:
+	CALL_ERROR_OR_ERROR_DATA( TESS_MISSING_END_CONTOUR );
+	gluTessEndContour( tess );
+	break;
+      case T_IN_POLYGON:
+	CALL_ERROR_OR_ERROR_DATA( TESS_MISSING_END_POLYGON );
+	/* gluTessEndPolygon( tess ) is too much work! */
+	MakeDormant( tess );
+	break;
+      default:
+	 ;
+      }
+    }
+  }
+}
+
+
+void TESSAPIENTRY
+gluDeleteTess( Tesselator *tess )
+{
+  RequireState( tess, T_DORMANT );
+  memFree( tess );
+}
+
+
+void TESSAPIENTRY
+gluTessProperty( Tesselator *tess, TessEnum which, double value )
+{
+  TessEnum windingRule;
+
+  switch( which ) {
+  case TESS_TOLERANCE:
+    if( value < 0.0 || value > 1.0 ) break;
+    tess->relTolerance = value;
+    return;
+
+  case TESS_WINDING_RULE:
+    windingRule = (TessEnum) value;
+    if( windingRule != value ) break;	/* not an integer */
+
+    switch( windingRule ) {
+    case TESS_WINDING_ODD:
+    case TESS_WINDING_NONZERO:
+    case TESS_WINDING_POSITIVE:
+    case TESS_WINDING_NEGATIVE:
+    case TESS_WINDING_ABS_GEQ_TWO:
+      tess->windingRule = windingRule;
+      return;
+    default:
+      break;
+    }
+
+  case TESS_BOUNDARY_ONLY:
+    tess->boundaryOnly = (value != 0);
+    return;
+
+  default:
+    CALL_ERROR_OR_ERROR_DATA( TESS_INVALID_ENUM );
+    return;
+  }
+  CALL_ERROR_OR_ERROR_DATA( TESS_INVALID_VALUE );
+}
+
+/* Returns tessellator property */
+void TESSAPIENTRY
+gluGetTessProperty( Tesselator *tess, TessEnum which, double *value )
+{
+   switch (which) {
+   case TESS_TOLERANCE:
+      /* tolerance should be in range [0..1] */
+      assert(0.0 <= tess->relTolerance && tess->relTolerance <= 1.0);
+      *value= tess->relTolerance;
+      break;
+   case TESS_WINDING_RULE:
+      assert(tess->windingRule == TESS_WINDING_ODD ||
+	     tess->windingRule == TESS_WINDING_NONZERO ||
+	     tess->windingRule == TESS_WINDING_POSITIVE ||
+	     tess->windingRule == TESS_WINDING_NEGATIVE ||
+	     tess->windingRule == TESS_WINDING_ABS_GEQ_TWO);
+      *value= tess->windingRule;
+      break;
+   case TESS_BOUNDARY_ONLY:
+      assert(tess->boundaryOnly == TRUE || tess->boundaryOnly == FALSE);
+      *value= tess->boundaryOnly;
+      break;
+   default:
+      *value= 0.0;
+      CALL_ERROR_OR_ERROR_DATA( TESS_INVALID_ENUM );
+      break;
+   }
+} /* gluGetTessProperty() */
+
+void TESSAPIENTRY
+gluTessNormal( Tesselator *tess, double x, double y, double z )
+{
+  tess->normal[0] = x;
+  tess->normal[1] = y;
+  tess->normal[2] = z;
+}
+
+void TESSAPIENTRY
+gluTessCallback( Tesselator *tess, TessEnum which, TessFuncptr fn)
+{
+  switch( which ) {
+  case TESS_BEGIN:
+    tess->callBegin = (fn == NULL) ? &noBegin : (void (TESSAPIENTRY *)(TessEnum)) fn;
+    return;
+  case TESS_BEGIN_DATA:
+    tess->callBeginData = (fn == NULL) ?
+	&_tess_noBeginData : (void (TESSAPIENTRY *)(TessEnum, void *)) fn;
+    return;
+  case TESS_EDGE_FLAG:
+    tess->callEdgeFlag = (fn == NULL) ? &noEdgeFlag :
+					(void (TESSAPIENTRY *)(bool)) fn;
+    /* If the client wants boundary edges to be flagged,
+     * we render everything as separate triangles (no strips or fans).
+     */
+    tess->flagBoundary = (fn != NULL);
+    return;
+  case TESS_EDGE_FLAG_DATA:
+    tess->callEdgeFlagData= (fn == NULL) ?
+	&_tess_noEdgeFlagData : (void (TESSAPIENTRY *)(bool, void *)) fn;
+    /* If the client wants boundary edges to be flagged,
+     * we render everything as separate triangles (no strips or fans).
+     */
+    tess->flagBoundary = (fn != NULL);
+    return;
+  case TESS_VERTEX:
+    tess->callVertex = (fn == NULL) ? &noVertex :
+				      (void (TESSAPIENTRY *)(void *)) fn;
+    return;
+  case TESS_VERTEX_DATA:
+    tess->callVertexData = (fn == NULL) ?
+	&_tess_noVertexData : (void (TESSAPIENTRY *)(void *, void *)) fn;
+    return;
+  case TESS_END:
+    tess->callEnd = (fn == NULL) ? &noEnd : (void (TESSAPIENTRY *)(void)) fn;
+    return;
+  case TESS_END_DATA:
+    tess->callEndData = (fn == NULL) ? &_tess_noEndData :
+				       (void (TESSAPIENTRY *)(void *)) fn;
+    return;
+  case TESS_ERROR:
+    tess->callError = (fn == NULL) ? &noError : (void (TESSAPIENTRY *)(TessEnum)) fn;
+    return;
+  case TESS_ERROR_DATA:
+    tess->callErrorData = (fn == NULL) ?
+	&_tess_noErrorData : (void (TESSAPIENTRY *)(TessEnum, void *)) fn;
+    return;
+  case TESS_COMBINE:
+    tess->callCombine = (fn == NULL) ? &noCombine :
+	(void (TESSAPIENTRY *)(double [3],void *[4], float [4], void ** )) fn;
+    return;
+  case TESS_COMBINE_DATA:
+    tess->callCombineData = (fn == NULL) ? &_tess_noCombineData :
+					   (void (TESSAPIENTRY *)(double [3],
+						     void *[4],
+						     float [4],
+						     void **,
+						     void *)) fn;
+    return;
+  case TESS_MESH:
+    tess->callMesh = (fn == NULL) ? &noMesh : (void (TESSAPIENTRY *)(TessMesh *)) fn;
+    return;
+  default:
+    CALL_ERROR_OR_ERROR_DATA( TESS_INVALID_ENUM );
+    return;
+  }
+}
+
+static int AddVertex( Tesselator *tess, double coords[3], void *data )
+{
+  TessHalfEdge *e;
+
+  e = tess->lastEdge;
+  if( e == NULL ) {
+    /* Make a self-loop (one vertex, one edge). */
+
+    e = _tess_meshMakeEdge( tess->mesh );
+    if (e == NULL) return 0;
+    if ( !_tess_meshSplice( e, e->Sym ) ) return 0;
+  } else {
+    /* Create a new vertex and edge which immediately follow e
+     * in the ordering around the left face.
+     */
+    if (_tess_meshSplitEdge( e ) == NULL) return 0;
+    e = e->Lnext;
+  }
+
+  /* The new vertex is now e->Org. */
+  e->Org->data = data;
+  e->Org->coords[0] = coords[0];
+  e->Org->coords[1] = coords[1];
+  e->Org->coords[2] = coords[2];
+
+  /* The winding of an edge says how the winding number changes as we
+   * cross from the edge''s right face to its left face.  We add the
+   * vertices in such an order that a CCW contour will add +1 to
+   * the winding number of the region inside the contour.
+   */
+  e->winding = 1;
+  e->Sym->winding = -1;
+
+  tess->lastEdge = e;
+
+  return 1;
+}
+
+
+static void CacheVertex( Tesselator *tess, double coords[3], void *data )
+{
+  CachedVertex *v = &tess->cache[tess->cacheCount];
+
+  v->data = data;
+  v->coords[0] = coords[0];
+  v->coords[1] = coords[1];
+  v->coords[2] = coords[2];
+  ++tess->cacheCount;
+}
+
+
+static int EmptyCache( Tesselator *tess )
+{
+  CachedVertex *v = tess->cache;
+  CachedVertex *vLast;
+
+  tess->mesh = _tess_meshNewMesh();
+  if (tess->mesh == NULL) return 0;
+
+  for( vLast = v + tess->cacheCount; v < vLast; ++v ) {
+    if ( !AddVertex( tess, v->coords, v->data ) ) return 0;
+  }
+  tess->cacheCount = 0;
+  tess->emptyCache = FALSE;
+
+  return 1;
+}
+
+
+void TESSAPIENTRY
+gluTessVertex( Tesselator *tess, double coords[3], void *data )
+{
+  int i, tooLarge = FALSE;
+  double x, clamped[3];
+
+  RequireState( tess, T_IN_CONTOUR );
+
+  if( tess->emptyCache ) {
+    if ( !EmptyCache( tess ) ) {
+       CALL_ERROR_OR_ERROR_DATA( TESS_OUT_OF_MEMORY );
+       return;
+    }
+    tess->lastEdge = NULL;
+  }
+  for( i = 0; i < 3; ++i ) {
+    x = coords[i];
+    if( x < - TESS_MAX_COORD ) {
+      x = - TESS_MAX_COORD;
+      tooLarge = TRUE;
+    }
+    if( x > TESS_MAX_COORD ) {
+      x = TESS_MAX_COORD;
+      tooLarge = TRUE;
+    }
+    clamped[i] = x;
+  }
+  if( tooLarge ) {
+    CALL_ERROR_OR_ERROR_DATA( TESS_COORD_TOO_LARGE );
+  }
+
+  if( tess->mesh == NULL ) {
+    if( tess->cacheCount < TESS_MAX_CACHE ) {
+      CacheVertex( tess, clamped, data );
+      return;
+    }
+    if ( !EmptyCache( tess ) ) {
+       CALL_ERROR_OR_ERROR_DATA( TESS_OUT_OF_MEMORY );
+       return;
+    }
+  }
+  if ( !AddVertex( tess, clamped, data ) ) {
+       CALL_ERROR_OR_ERROR_DATA( TESS_OUT_OF_MEMORY );
+  }
+}
+
+
+void TESSAPIENTRY
+gluTessBeginPolygon( Tesselator *tess, void *data )
+{
+  RequireState( tess, T_DORMANT );
+
+  tess->state = T_IN_POLYGON;
+  tess->cacheCount = 0;
+  tess->emptyCache = FALSE;
+  tess->mesh = NULL;
+
+  tess->polygonData= data;
+}
+
+
+void TESSAPIENTRY
+gluTessBeginContour( Tesselator *tess )
+{
+  RequireState( tess, T_IN_POLYGON );
+
+  tess->state = T_IN_CONTOUR;
+  tess->lastEdge = NULL;
+  if( tess->cacheCount > 0 ) {
+    /* Just set a flag so we don't get confused by empty contours
+     * -- these can be generated accidentally with the obsolete
+     * NextContour() interface.
+     */
+    tess->emptyCache = TRUE;
+  }
+}
+
+
+void TESSAPIENTRY
+gluTessEndContour( Tesselator *tess )
+{
+  RequireState( tess, T_IN_CONTOUR );
+  tess->state = T_IN_POLYGON;
+}
+
+void TESSAPIENTRY
+gluTessEndPolygon( Tesselator *tess )
+{
+  TessMesh *mesh;
+
+  if (setjmp(tess->env) != 0) { 
+     /* come back here if out of memory */
+     CALL_ERROR_OR_ERROR_DATA( TESS_OUT_OF_MEMORY );
+     return;
+  }
+
+  RequireState( tess, T_IN_POLYGON );
+  tess->state = T_DORMANT;
+
+  if( tess->mesh == NULL ) {
+    if( ! tess->flagBoundary && tess->callMesh == &noMesh ) {
+
+      /* Try some special code to make the easy cases go quickly
+       * (eg. convex polygons).  This code does NOT handle multiple contours,
+       * intersections, edge flags, and of course it does not generate
+       * an explicit mesh either.
+       */
+      if( _tess_renderCache( tess )) {
+	tess->polygonData= NULL;
+	return;
+      }
+    }
+    if ( !EmptyCache( tess ) ) longjmp(tess->env,1); /* could've used a label*/
+  }
+
+  /* Determine the polygon normal and project vertices onto the plane
+   * of the polygon.
+   */
+  _tess_projectPolygon( tess );
+
+  /* _tess_computeInterior( tess ) computes the planar arrangement specified
+   * by the given contours, and further subdivides this arrangement
+   * into regions.  Each region is marked "inside" if it belongs
+   * to the polygon, according to the rule given by tess->windingRule.
+   * Each interior region is guaranteed be monotone.
+   */
+  if ( !_tess_computeInterior( tess ) ) {
+     longjmp(tess->env,1);	/* could've used a label */
+  }
+
+  mesh = tess->mesh;
+  if( ! tess->fatalError ) {
+    int rc = 1;
+
+    /* If the user wants only the boundary contours, we throw away all edges
+     * except those which separate the interior from the exterior.
+     * Otherwise we tessellate all the regions marked "inside".
+     */
+    if( tess->boundaryOnly ) {
+      rc = _tess_meshSetWindingNumber( mesh, 1, TRUE );
+    } else {
+      rc = _tess_meshTessellateInterior( mesh );
+    }
+    if (rc == 0) longjmp(tess->env,1);	/* could've used a label */
+
+    _tess_meshCheckMesh( mesh );
+
+    if( tess->callBegin != &noBegin || tess->callEnd != &noEnd
+       || tess->callVertex != &noVertex || tess->callEdgeFlag != &noEdgeFlag
+       || tess->callBeginData != &_tess_noBeginData
+       || tess->callEndData != &_tess_noEndData
+       || tess->callVertexData != &_tess_noVertexData
+       || tess->callEdgeFlagData != &_tess_noEdgeFlagData )
+    {
+      if( tess->boundaryOnly ) {
+	_tess_renderBoundary( tess, mesh );  /* output boundary contours */
+      } else {
+	_tess_renderMesh( tess, mesh );	   /* output strips and fans */
+      }
+    }
+    if( tess->callMesh != &noMesh ) {
+
+      /* Throw away the exterior faces, so that all faces are interior.
+       * This way the user doesn't have to check the "inside" flag,
+       * and we don't need to even reveal its existence.  It also leaves
+       * the freedom for an implementation to not generate the exterior
+       * faces in the first place.
+       */
+      _tess_meshDiscardExterior( mesh );
+      (*tess->callMesh)( mesh );		/* user wants the mesh itself */
+      tess->mesh = NULL;
+      tess->polygonData= NULL;
+      return;
+    }
+  }
+  _tess_meshDeleteMesh( mesh );
+  tess->polygonData= NULL;
+  tess->mesh = NULL;
+}
+
+
+/*XXXblythe unused function*/
+#if 0
+void TESSAPIENTRY
+gluDeleteMesh( TessMesh *mesh )
+{
+  _tess_meshDeleteMesh( mesh );
+}
+#endif
+
+
+
+/*******************************************************/
+
+/* Obsolete calls -- for backward compatibility */
+
+void TESSAPIENTRY
+gluBeginPolygon( Tesselator *tess )
+{
+  gluTessBeginPolygon( tess, NULL );
+  gluTessBeginContour( tess );
+}
+
+
+/*ARGSUSED*/
+void TESSAPIENTRY
+gluNextContour( Tesselator *tess, TessEnum type )
+{
+  gluTessEndContour( tess );
+  gluTessBeginContour( tess );
+}
+
+
+void TESSAPIENTRY
+gluEndPolygon( Tesselator *tess )
+{
+  gluTessEndContour( tess );
+  gluTessEndPolygon( tess );
+}

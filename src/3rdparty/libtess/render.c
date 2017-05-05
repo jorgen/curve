@@ -32,7 +32,6 @@
 **
 */
 
-#include "gluos.h"
 #include <assert.h>
 #include <stddef.h>
 #include "mesh.h"
@@ -52,36 +51,36 @@
  */
 struct FaceCount {
   long		size;		/* number of triangles used */
-  GLUhalfEdge	*eStart;	/* edge where this primitive starts */
-  void		(*render)(GLUtesselator *, GLUhalfEdge *, long);
+  TessHalfEdge	*eStart;	/* edge where this primitive starts */
+  void		(*render)(TessTesselator *, TessHalfEdge *, long);
                                 /* routine to render this primitive */
 };
 
-static struct FaceCount MaximumFan( GLUhalfEdge *eOrig );
-static struct FaceCount MaximumStrip( GLUhalfEdge *eOrig );
+static struct FaceCount MaximumFan( TessHalfEdge *eOrig );
+static struct FaceCount MaximumStrip( TessHalfEdge *eOrig );
 
-static void RenderFan( GLUtesselator *tess, GLUhalfEdge *eStart, long size );
-static void RenderStrip( GLUtesselator *tess, GLUhalfEdge *eStart, long size );
-static void RenderTriangle( GLUtesselator *tess, GLUhalfEdge *eStart,
+static void RenderFan( TessTesselator *tess, TessHalfEdge *eStart, long size );
+static void RenderStrip( TessTesselator *tess, TessHalfEdge *eStart, long size );
+static void RenderTriangle( TessTesselator *tess, TessHalfEdge *eStart,
 			    long size );
 
-static void RenderMaximumFaceGroup( GLUtesselator *tess, GLUface *fOrig );
-static void RenderLonelyTriangles( GLUtesselator *tess, GLUface *head );
+static void RenderMaximumFaceGroup( TessTesselator *tess, TessFace *fOrig );
+static void RenderLonelyTriangles( TessTesselator *tess, TessFace *head );
 
 
 
 /************************ Strips and Fans decomposition ******************/
 
-/* __gl_renderMesh( tess, mesh ) takes a mesh and breaks it into triangle
+/* _tess_renderMesh( tess, mesh ) takes a mesh and breaks it into triangle
  * fans, strips, and separate triangles.  A substantial effort is made
  * to use as few rendering primitives as possible (ie. to make the fans
  * and strips as large as possible).
  *
  * The rendering output is provided as callbacks (see the api).
  */
-void __gl_renderMesh( GLUtesselator *tess, GLUmesh *mesh )
+void _tess_renderMesh( TessTesselator *tess, TessMesh *mesh )
 {
-  GLUface *f;
+  TessFace *f;
 
   /* Make a list of separate triangles so we can render them all at once */
   tess->lonelyTriList = NULL;
@@ -107,7 +106,7 @@ void __gl_renderMesh( GLUtesselator *tess, GLUmesh *mesh )
 }
 
 
-static void RenderMaximumFaceGroup( GLUtesselator *tess, GLUface *fOrig )
+static void RenderMaximumFaceGroup( TessTesselator *tess, TessFace *fOrig )
 {
   /* We want to find the largest triangle fan or strip of unmarked faces
    * which includes the given face fOrig.  There are 3 possible fans
@@ -116,7 +115,7 @@ static void RenderMaximumFaceGroup( GLUtesselator *tess, GLUface *fOrig )
    * is to try all of these, and take the primitive which uses the most
    * triangles (a greedy approach).
    */
-  GLUhalfEdge *e = fOrig->anEdge;
+  TessHalfEdge *e = fOrig->anEdge;
   struct FaceCount max, newFace;
 
   max.size = 1;
@@ -155,15 +154,15 @@ static void RenderMaximumFaceGroup( GLUtesselator *tess, GLUface *fOrig )
 
 
 
-static struct FaceCount MaximumFan( GLUhalfEdge *eOrig )
+static struct FaceCount MaximumFan( TessHalfEdge *eOrig )
 {
   /* eOrig->Lface is the face we want to render.  We want to find the size
    * of a maximal fan around eOrig->Org.  To do this we just walk around
    * the origin vertex as far as possible in both directions.
    */
   struct FaceCount newFace = { 0, NULL, &RenderFan };
-  GLUface *trail = NULL;
-  GLUhalfEdge *e;
+  TessFace *trail = NULL;
+  TessHalfEdge *e;
 
   for( e = eOrig; ! Marked( e->Lface ); e = e->Onext ) {
     AddToTrail( e->Lface, trail );
@@ -182,7 +181,7 @@ static struct FaceCount MaximumFan( GLUhalfEdge *eOrig )
 
 #define IsEven(n)	(((n) & 1) == 0)
 
-static struct FaceCount MaximumStrip( GLUhalfEdge *eOrig )
+static struct FaceCount MaximumStrip( TessHalfEdge *eOrig )
 {
   /* Here we are looking for a maximal strip that contains the vertices
    * eOrig->Org, eOrig->Dst, eOrig->Lnext->Dst (in that order or the
@@ -196,8 +195,8 @@ static struct FaceCount MaximumStrip( GLUhalfEdge *eOrig )
    */
   struct FaceCount newFace = { 0, NULL, &RenderStrip };
   long headSize = 0, tailSize = 0;
-  GLUface *trail = NULL;
-  GLUhalfEdge *e, *eTail, *eHead;
+  TessFace *trail = NULL;
+  TessHalfEdge *e, *eTail, *eHead;
 
   for( e = eOrig; ! Marked( e->Lface ); ++tailSize, e = e->Onext ) {
     AddToTrail( e->Lface, trail );
@@ -235,7 +234,7 @@ static struct FaceCount MaximumStrip( GLUhalfEdge *eOrig )
 }
 
 
-static void RenderTriangle( GLUtesselator *tess, GLUhalfEdge *e, long size )
+static void RenderTriangle( TessTesselator *tess, TessHalfEdge *e, long size )
 {
   /* Just add the triangle to a triangle list, so we can render all
    * the separate triangles at once.
@@ -245,16 +244,16 @@ static void RenderTriangle( GLUtesselator *tess, GLUhalfEdge *e, long size )
 }
 
 
-static void RenderLonelyTriangles( GLUtesselator *tess, GLUface *f )
+static void RenderLonelyTriangles( TessTesselator *tess, TessFace *f )
 {
   /* Now we render all the separate triangles which could not be
    * grouped into a triangle fan or strip.
    */
-  GLUhalfEdge *e;
+  TessHalfEdge *e;
   int newState;
   int edgeState = -1;	/* force edge state output for first vertex */
 
-  CALL_BEGIN_OR_BEGIN_DATA( GL_TRIANGLES );
+  CALL_BEGIN_OR_BEGIN_DATA( TESS_TRIANGLES );
 
   for( ; f != NULL; f = f->trail ) {
     /* Loop once for each edge (there will always be 3 edges) */
@@ -280,13 +279,13 @@ static void RenderLonelyTriangles( GLUtesselator *tess, GLUface *f )
 }
 
 
-static void RenderFan( GLUtesselator *tess, GLUhalfEdge *e, long size )
+static void RenderFan( TessTesselator *tess, TessHalfEdge *e, long size )
 {
   /* Render as many CCW triangles as possible in a fan starting from
    * edge "e".  The fan *should* contain exactly "size" triangles
    * (otherwise we've goofed up somewhere).
    */
-  CALL_BEGIN_OR_BEGIN_DATA( GL_TRIANGLE_FAN ); 
+  CALL_BEGIN_OR_BEGIN_DATA( TESS_TRIANGLE_FAN ); 
   CALL_VERTEX_OR_VERTEX_DATA( e->Org->data ); 
   CALL_VERTEX_OR_VERTEX_DATA( e->Dst->data ); 
 
@@ -302,13 +301,13 @@ static void RenderFan( GLUtesselator *tess, GLUhalfEdge *e, long size )
 }
 
 
-static void RenderStrip( GLUtesselator *tess, GLUhalfEdge *e, long size )
+static void RenderStrip( TessTesselator *tess, TessHalfEdge *e, long size )
 {
   /* Render as many CCW triangles as possible in a strip starting from
    * edge "e".  The strip *should* contain exactly "size" triangles
    * (otherwise we've goofed up somewhere).
    */
-  CALL_BEGIN_OR_BEGIN_DATA( GL_TRIANGLE_STRIP );
+  CALL_BEGIN_OR_BEGIN_DATA( TESS_TRIANGLE_STRIP );
   CALL_VERTEX_OR_VERTEX_DATA( e->Org->data ); 
   CALL_VERTEX_OR_VERTEX_DATA( e->Dst->data ); 
 
@@ -332,18 +331,18 @@ static void RenderStrip( GLUtesselator *tess, GLUhalfEdge *e, long size )
 
 /************************ Boundary contour decomposition ******************/
 
-/* __gl_renderBoundary( tess, mesh ) takes a mesh, and outputs one
+/* _tess_renderBoundary( tess, mesh ) takes a mesh, and outputs one
  * contour for each face marked "inside".  The rendering output is
  * provided as callbacks (see the api).
  */
-void __gl_renderBoundary( GLUtesselator *tess, GLUmesh *mesh )
+void _tess_renderBoundary( TessTesselator *tess, TessMesh *mesh )
 {
-  GLUface *f;
-  GLUhalfEdge *e;
+  TessFace *f;
+  TessHalfEdge *e;
 
   for( f = mesh->fHead.next; f != &mesh->fHead; f = f->next ) {
     if( f->inside ) {
-      CALL_BEGIN_OR_BEGIN_DATA( GL_LINE_LOOP );
+      CALL_BEGIN_OR_BEGIN_DATA( TESS_LINE_LOOP );
       e = f->anEdge;
       do {
         CALL_VERTEX_OR_VERTEX_DATA( e->Org->data ); 
@@ -359,7 +358,7 @@ void __gl_renderBoundary( GLUtesselator *tess, GLUmesh *mesh )
 
 #define SIGN_INCONSISTENT 2
 
-static int ComputeNormal( GLUtesselator *tess, GLdouble norm[3], int check )
+static int ComputeNormal( TessTesselator *tess, double norm[3], int check )
 /*
  * If check==FALSE, we compute the polygon normal and place it in norm[].
  * If check==TRUE, we check that each triangle in the fan from v0 has a
@@ -372,7 +371,7 @@ static int ComputeNormal( GLUtesselator *tess, GLdouble norm[3], int check )
   CachedVertex *v0 = tess->cache;
   CachedVertex *vn = v0 + tess->cacheCount;
   CachedVertex *vc;
-  GLdouble dot, xc, yc, zc, xp, yp, zp, n[3];
+  double dot, xc, yc, zc, xp, yp, zp, n[3];
   int sign = 0;
 
   /* Find the polygon normal.  It is important to get a reasonable
@@ -431,19 +430,19 @@ static int ComputeNormal( GLUtesselator *tess, GLdouble norm[3], int check )
   return sign;
 }
 
-/* __gl_renderCache( tess ) takes a single contour and tries to render it
+/* _tess_renderCache( tess ) takes a single contour and tries to render it
  * as a triangle fan.  This handles convex polygons, as well as some
  * non-convex polygons if we get lucky.
  *
  * Returns TRUE if the polygon was successfully rendered.  The rendering
  * output is provided as callbacks (see the api).
  */
-GLboolean __gl_renderCache( GLUtesselator *tess )
+bool _tess_renderCache( TessTesselator *tess )
 {
   CachedVertex *v0 = tess->cache;
   CachedVertex *vn = v0 + tess->cacheCount;
   CachedVertex *vc;
-  GLdouble norm[3];
+  double norm[3];
   int sign;
 
   if( tess->cacheCount < 3 ) {
@@ -470,22 +469,22 @@ GLboolean __gl_renderCache( GLUtesselator *tess )
 
   /* Make sure we do the right thing for each winding rule */
   switch( tess->windingRule ) {
-  case GLU_TESS_WINDING_ODD:
-  case GLU_TESS_WINDING_NONZERO:
+  case TESS_WINDING_ODD:
+  case TESS_WINDING_NONZERO:
     break;
-  case GLU_TESS_WINDING_POSITIVE:
+  case TESS_WINDING_POSITIVE:
     if( sign < 0 ) return TRUE;
     break;
-  case GLU_TESS_WINDING_NEGATIVE:
+  case TESS_WINDING_NEGATIVE:
     if( sign > 0 ) return TRUE;
     break;
-  case GLU_TESS_WINDING_ABS_GEQ_TWO:
+  case TESS_WINDING_ABS_GEQ_TWO:
     return TRUE;
   }
 
-  CALL_BEGIN_OR_BEGIN_DATA( tess->boundaryOnly ? GL_LINE_LOOP
-			  : (tess->cacheCount > 3) ? GL_TRIANGLE_FAN
-			  : GL_TRIANGLES );
+  CALL_BEGIN_OR_BEGIN_DATA( tess->boundaryOnly ? TESS_LINE_LOOP
+			  : (tess->cacheCount > 3) ? TESS_TRIANGLE_FAN
+			  : TESS_TRIANGLES );
 
   CALL_VERTEX_OR_VERTEX_DATA( v0->data ); 
   if( sign > 0 ) {

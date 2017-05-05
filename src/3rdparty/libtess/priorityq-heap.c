@@ -51,10 +51,10 @@
 #else
 /* Violates modularity, but a little faster */
 #include "geom.h"
-#define LEQ(x,y)	VertLeq((GLUvertex *)x, (GLUvertex *)y)
+#define LEQ(x,y)	VertLeq((TessVertex *)x, (TessVertex *)y)
 #endif
 
-/* really __gl_pqHeapNewPriorityQ */
+/* really _tess_pqHeapNewPriorityQ */
 PriorityQ *pqNewPriorityQ( int (*leq)(PQkey key1, PQkey key2) )
 {
   PriorityQ *pq = (PriorityQ *)memAlloc( sizeof( PriorityQ ));
@@ -84,7 +84,7 @@ PriorityQ *pqNewPriorityQ( int (*leq)(PQkey key1, PQkey key2) )
   return pq;
 }
 
-/* really __gl_pqHeapDeletePriorityQ */
+/* really _tess_pqHeapDeletePriorityQ */
 void pqDeletePriorityQ( PriorityQ *pq )
 {
   memFree( pq->handles );
@@ -145,7 +145,7 @@ static void FloatUp( PriorityQ *pq, long curr )
   }
 }
 
-/* really __gl_pqHeapInit */
+/* really _tess_pqHeapInit */
 void pqInit( PriorityQ *pq )
 {
   long i;
@@ -158,7 +158,7 @@ void pqInit( PriorityQ *pq )
   pq->initialized = TRUE;
 }
 
-/* really __gl_pqHeapInsert */
+/* really _tess_pqHeapInsert */
 /* returns LONG_MAX iff out of memory */
 PQhandle pqInsert( PriorityQ *pq, PQkey keyNew )
 {
@@ -207,7 +207,7 @@ PQhandle pqInsert( PriorityQ *pq, PQkey keyNew )
   return free_handle;
 }
 
-/* really __gl_pqHeapExtractMin */
+/* really _tess_pqHeapExtractMin */
 PQkey pqExtractMin( PriorityQ *pq )
 {
   PQnode *n = pq->nodes;
@@ -230,7 +230,7 @@ PQkey pqExtractMin( PriorityQ *pq )
   return min;
 }
 
-/* really __gl_pqHeapDelete */
+/* really _tess_pqHeapDelete */
 void pqDelete( PriorityQ *pq, PQhandle hCurr )
 {
   PQnode *n = pq->nodes;

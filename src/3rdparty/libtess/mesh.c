@@ -32,7 +32,6 @@
 **
 */
 
-#include "gluos.h"
 #include <stddef.h>
 #include <assert.h>
 #include "mesh.h"
@@ -45,14 +44,14 @@
 #define FALSE 0
 #endif
 
-static GLUvertex *allocVertex()
+static TessVertex *allocVertex()
 {
-   return (GLUvertex *)memAlloc( sizeof( GLUvertex ));
+   return (TessVertex *)memAlloc( sizeof( TessVertex ));
 }
 
-static GLUface *allocFace()
+static TessFace *allocFace()
 {
-   return (GLUface *)memAlloc( sizeof( GLUface ));
+   return (TessFace *)memAlloc( sizeof( TessFace ));
 }
 
 /************************ Utility Routines ************************/
@@ -60,17 +59,17 @@ static GLUface *allocFace()
 /* Allocate and free half-edges in pairs for efficiency.
  * The *only* place that should use this fact is allocation/free.
  */
-typedef struct { GLUhalfEdge e, eSym; } EdgePair;
+typedef struct { TessHalfEdge e, eSym; } EdgePair;
 
 /* MakeEdge creates a new pair of half-edges which form their own loop.
  * No vertex or face structures are allocated, but these must be assigned
  * before the current edge operation is completed.
  */
-static GLUhalfEdge *MakeEdge( GLUhalfEdge *eNext )
+static TessHalfEdge *MakeEdge( TessHalfEdge *eNext )
 {
-  GLUhalfEdge *e;
-  GLUhalfEdge *eSym;
-  GLUhalfEdge *ePrev;
+  TessHalfEdge *e;
+  TessHalfEdge *eSym;
+  TessHalfEdge *ePrev;
   EdgePair *pair = (EdgePair *)memAlloc( sizeof( EdgePair ));
   if (pair == NULL) return NULL;
 
@@ -112,12 +111,12 @@ static GLUhalfEdge *MakeEdge( GLUhalfEdge *eNext )
  * CS348a notes (see mesh.h).  Basically it modifies the mesh so that
  * a->Onext and b->Onext are exchanged.  This can have various effects
  * depending on whether a and b belong to different face or vertex rings.
- * For more explanation see __gl_meshSplice() below.
+ * For more explanation see _tess_meshSplice() below.
  */
-static void Splice( GLUhalfEdge *a, GLUhalfEdge *b )
+static void Splice( TessHalfEdge *a, TessHalfEdge *b )
 {
-  GLUhalfEdge *aOnext = a->Onext;
-  GLUhalfEdge *bOnext = b->Onext;
+  TessHalfEdge *aOnext = a->Onext;
+  TessHalfEdge *bOnext = b->Onext;
 
   aOnext->Sym->Lnext = b;
   bOnext->Sym->Lnext = a;
@@ -131,12 +130,12 @@ static void Splice( GLUhalfEdge *a, GLUhalfEdge *b )
  * the new vertex *before* vNext so that algorithms which walk the vertex
  * list will not see the newly created vertices.
  */
-static void MakeVertex( GLUvertex *newVertex, 
-			GLUhalfEdge *eOrig, GLUvertex *vNext )
+static void MakeVertex( TessVertex *newVertex, 
+			TessHalfEdge *eOrig, TessVertex *vNext )
 {
-  GLUhalfEdge *e;
-  GLUvertex *vPrev;
-  GLUvertex *vNew = newVertex;
+  TessHalfEdge *e;
+  TessVertex *vPrev;
+  TessVertex *vNew = newVertex;
 
   assert(vNew != NULL);
 
@@ -165,11 +164,11 @@ static void MakeVertex( GLUvertex *newVertex,
  * the new face *before* fNext so that algorithms which walk the face
  * list will not see the newly created faces.
  */
-static void MakeFace( GLUface *newFace, GLUhalfEdge *eOrig, GLUface *fNext )
+static void MakeFace( TessFace *newFace, TessHalfEdge *eOrig, TessFace *fNext )
 {
-  GLUhalfEdge *e;
-  GLUface *fPrev;
-  GLUface *fNew = newFace;
+  TessHalfEdge *e;
+  TessFace *fPrev;
+  TessFace *fNew = newFace;
 
   assert(fNew != NULL); 
 
@@ -201,9 +200,9 @@ static void MakeFace( GLUface *newFace, GLUhalfEdge *eOrig, GLUface *fNext )
 /* KillEdge( eDel ) destroys an edge (the half-edges eDel and eDel->Sym),
  * and removes from the global edge list.
  */
-static void KillEdge( GLUhalfEdge *eDel )
+static void KillEdge( TessHalfEdge *eDel )
 {
-  GLUhalfEdge *ePrev, *eNext;
+  TessHalfEdge *ePrev, *eNext;
 
   /* Half-edges are allocated in pairs, see EdgePair above */
   if( eDel->Sym < eDel ) { eDel = eDel->Sym; }
@@ -221,10 +220,10 @@ static void KillEdge( GLUhalfEdge *eDel )
 /* KillVertex( vDel ) destroys a vertex and removes it from the global
  * vertex list.  It updates the vertex loop to point to a given new vertex.
  */
-static void KillVertex( GLUvertex *vDel, GLUvertex *newOrg )
+static void KillVertex( TessVertex *vDel, TessVertex *newOrg )
 {
-  GLUhalfEdge *e, *eStart = vDel->anEdge;
-  GLUvertex *vPrev, *vNext;
+  TessHalfEdge *e, *eStart = vDel->anEdge;
+  TessVertex *vPrev, *vNext;
 
   /* change the origin of all affected edges */
   e = eStart;
@@ -245,10 +244,10 @@ static void KillVertex( GLUvertex *vDel, GLUvertex *newOrg )
 /* KillFace( fDel ) destroys a face and removes it from the global face
  * list.  It updates the face loop to point to a given new face.
  */
-static void KillFace( GLUface *fDel, GLUface *newLface )
+static void KillFace( TessFace *fDel, TessFace *newLface )
 {
-  GLUhalfEdge *e, *eStart = fDel->anEdge;
-  GLUface *fPrev, *fNext;
+  TessHalfEdge *e, *eStart = fDel->anEdge;
+  TessFace *fPrev, *fNext;
 
   /* change the left face of all affected edges */
   e = eStart;
@@ -269,15 +268,15 @@ static void KillFace( GLUface *fDel, GLUface *newLface )
 
 /****************** Basic Edge Operations **********************/
 
-/* __gl_meshMakeEdge creates one edge, two vertices, and a loop (face).
+/* _tess_meshMakeEdge creates one edge, two vertices, and a loop (face).
  * The loop consists of the two new half-edges.
  */
-GLUhalfEdge *__gl_meshMakeEdge( GLUmesh *mesh )
+TessHalfEdge *_tess_meshMakeEdge( TessMesh *mesh )
 {
-  GLUvertex *newVertex1= allocVertex();
-  GLUvertex *newVertex2= allocVertex();
-  GLUface *newFace= allocFace();
-  GLUhalfEdge *e;
+  TessVertex *newVertex1= allocVertex();
+  TessVertex *newVertex2= allocVertex();
+  TessFace *newFace= allocFace();
+  TessHalfEdge *e;
 
   /* if any one is null then all get freed */
   if (newVertex1 == NULL || newVertex2 == NULL || newFace == NULL) {
@@ -302,7 +301,7 @@ GLUhalfEdge *__gl_meshMakeEdge( GLUmesh *mesh )
 }
   
 
-/* __gl_meshSplice( eOrg, eDst ) is the basic operation for changing the
+/* _tess_meshSplice( eOrg, eDst ) is the basic operation for changing the
  * mesh connectivity and topology.  It changes the mesh so that
  *	eOrg->Onext <- OLD( eDst->Onext )
  *	eDst->Onext <- OLD( eOrg->Onext )
@@ -325,7 +324,7 @@ GLUhalfEdge *__gl_meshMakeEdge( GLUmesh *mesh )
  * If eDst == eOrg->Onext, the new vertex will have a single edge.
  * If eDst == eOrg->Oprev, the old vertex will have a single edge.
  */
-int __gl_meshSplice( GLUhalfEdge *eOrg, GLUhalfEdge *eDst )
+int _tess_meshSplice( TessHalfEdge *eOrg, TessHalfEdge *eDst )
 {
   int joiningLoops = FALSE;
   int joiningVertices = FALSE;
@@ -347,7 +346,7 @@ int __gl_meshSplice( GLUhalfEdge *eOrg, GLUhalfEdge *eDst )
   Splice( eDst, eOrg );
 
   if( ! joiningVertices ) {
-    GLUvertex *newVertex= allocVertex();
+    TessVertex *newVertex= allocVertex();
     if (newVertex == NULL) return 0;
 
     /* We split one vertex into two -- the new vertex is eDst->Org.
@@ -357,7 +356,7 @@ int __gl_meshSplice( GLUhalfEdge *eOrg, GLUhalfEdge *eDst )
     eOrg->Org->anEdge = eOrg;
   }
   if( ! joiningLoops ) {
-    GLUface *newFace= allocFace();  
+    TessFace *newFace= allocFace();  
     if (newFace == NULL) return 0;
 
     /* We split one loop into two -- the new loop is eDst->Lface.
@@ -371,19 +370,19 @@ int __gl_meshSplice( GLUhalfEdge *eOrg, GLUhalfEdge *eDst )
 }
 
 
-/* __gl_meshDelete( eDel ) removes the edge eDel.  There are several cases:
+/* _tess_meshDelete( eDel ) removes the edge eDel.  There are several cases:
  * if (eDel->Lface != eDel->Rface), we join two loops into one; the loop
  * eDel->Lface is deleted.  Otherwise, we are splitting one loop into two;
  * the newly created loop will contain eDel->Dst.  If the deletion of eDel
  * would create isolated vertices, those are deleted as well.
  *
- * This function could be implemented as two calls to __gl_meshSplice
+ * This function could be implemented as two calls to _tess_meshSplice
  * plus a few calls to memFree, but this would allocate and delete
  * unnecessary vertices and faces.
  */
-int __gl_meshDelete( GLUhalfEdge *eDel )
+int _tess_meshDelete( TessHalfEdge *eDel )
 {
-  GLUhalfEdge *eDelSym = eDel->Sym;
+  TessHalfEdge *eDelSym = eDel->Sym;
   int joiningLoops = FALSE;
 
   /* First step: disconnect the origin vertex eDel->Org.  We make all
@@ -404,7 +403,7 @@ int __gl_meshDelete( GLUhalfEdge *eDel )
 
     Splice( eDel, eDel->Oprev );
     if( ! joiningLoops ) {
-      GLUface *newFace= allocFace();
+      TessFace *newFace= allocFace();
       if (newFace == NULL) return 0; 
 
       /* We are splitting one loop into two -- create a new loop for eDel. */
@@ -439,14 +438,14 @@ int __gl_meshDelete( GLUhalfEdge *eDel )
  */
 
 
-/* __gl_meshAddEdgeVertex( eOrg ) creates a new edge eNew such that
+/* _tess_meshAddEdgeVertex( eOrg ) creates a new edge eNew such that
  * eNew == eOrg->Lnext, and eNew->Dst is a newly created vertex.
  * eOrg and eNew will have the same left face.
  */
-GLUhalfEdge *__gl_meshAddEdgeVertex( GLUhalfEdge *eOrg )
+TessHalfEdge *_tess_meshAddEdgeVertex( TessHalfEdge *eOrg )
 {
-  GLUhalfEdge *eNewSym;
-  GLUhalfEdge *eNew = MakeEdge( eOrg );
+  TessHalfEdge *eNewSym;
+  TessHalfEdge *eNew = MakeEdge( eOrg );
   if (eNew == NULL) return NULL;
 
   eNewSym = eNew->Sym;
@@ -457,7 +456,7 @@ GLUhalfEdge *__gl_meshAddEdgeVertex( GLUhalfEdge *eOrg )
   /* Set the vertex and face information */
   eNew->Org = eOrg->Dst;
   {
-    GLUvertex *newVertex= allocVertex();
+    TessVertex *newVertex= allocVertex();
     if (newVertex == NULL) return NULL;
 
     MakeVertex( newVertex, eNewSym, eNew->Org );
@@ -468,14 +467,14 @@ GLUhalfEdge *__gl_meshAddEdgeVertex( GLUhalfEdge *eOrg )
 }
 
 
-/* __gl_meshSplitEdge( eOrg ) splits eOrg into two edges eOrg and eNew,
+/* _tess_meshSplitEdge( eOrg ) splits eOrg into two edges eOrg and eNew,
  * such that eNew == eOrg->Lnext.  The new vertex is eOrg->Dst == eNew->Org.
  * eOrg and eNew will have the same left face.
  */
-GLUhalfEdge *__gl_meshSplitEdge( GLUhalfEdge *eOrg )
+TessHalfEdge *_tess_meshSplitEdge( TessHalfEdge *eOrg )
 {
-  GLUhalfEdge *eNew;
-  GLUhalfEdge *tempHalfEdge= __gl_meshAddEdgeVertex( eOrg );
+  TessHalfEdge *eNew;
+  TessHalfEdge *tempHalfEdge= _tess_meshAddEdgeVertex( eOrg );
   if (tempHalfEdge == NULL) return NULL;
 
   eNew = tempHalfEdge->Sym;
@@ -495,7 +494,7 @@ GLUhalfEdge *__gl_meshSplitEdge( GLUhalfEdge *eOrg )
 }
 
 
-/* __gl_meshConnect( eOrg, eDst ) creates a new edge from eOrg->Dst
+/* _tess_meshConnect( eOrg, eDst ) creates a new edge from eOrg->Dst
  * to eDst->Org, and returns the corresponding half-edge eNew.
  * If eOrg->Lface == eDst->Lface, this splits one loop into two,
  * and the newly created loop is eNew->Lface.  Otherwise, two disjoint
@@ -505,11 +504,11 @@ GLUhalfEdge *__gl_meshSplitEdge( GLUhalfEdge *eOrg )
  * If (eOrg->Lnext == eDst), the old face is reduced to a single edge.
  * If (eOrg->Lnext->Lnext == eDst), the old face is reduced to two edges.
  */
-GLUhalfEdge *__gl_meshConnect( GLUhalfEdge *eOrg, GLUhalfEdge *eDst )
+TessHalfEdge *_tess_meshConnect( TessHalfEdge *eOrg, TessHalfEdge *eDst )
 {
-  GLUhalfEdge *eNewSym;
+  TessHalfEdge *eNewSym;
   int joiningLoops = FALSE;  
-  GLUhalfEdge *eNew = MakeEdge( eOrg );
+  TessHalfEdge *eNew = MakeEdge( eOrg );
   if (eNew == NULL) return NULL;
 
   eNewSym = eNew->Sym;
@@ -533,7 +532,7 @@ GLUhalfEdge *__gl_meshConnect( GLUhalfEdge *eOrg, GLUhalfEdge *eDst )
   eOrg->Lface->anEdge = eNewSym;
 
   if( ! joiningLoops ) {
-    GLUface *newFace= allocFace();
+    TessFace *newFace= allocFace();
     if (newFace == NULL) return NULL;
 
     /* We split one loop into two -- the new loop is eNew->Lface */
@@ -545,18 +544,18 @@ GLUhalfEdge *__gl_meshConnect( GLUhalfEdge *eOrg, GLUhalfEdge *eDst )
 
 /******************** Other Operations **********************/
 
-/* __gl_meshZapFace( fZap ) destroys a face and removes it from the
+/* _tess_meshZapFace( fZap ) destroys a face and removes it from the
  * global face list.  All edges of fZap will have a NULL pointer as their
  * left face.  Any edges which also have a NULL pointer as their right face
  * are deleted entirely (along with any isolated vertices this produces).
  * An entire mesh can be deleted by zapping its faces, one at a time,
  * in any order.  Zapped faces cannot be used in further mesh operations!
  */
-void __gl_meshZapFace( GLUface *fZap )
+void _tess_meshZapFace( TessFace *fZap )
 {
-  GLUhalfEdge *eStart = fZap->anEdge;
-  GLUhalfEdge *e, *eNext, *eSym;
-  GLUface *fPrev, *fNext;
+  TessHalfEdge *eStart = fZap->anEdge;
+  TessHalfEdge *e, *eNext, *eSym;
+  TessFace *fPrev, *fNext;
 
   /* walk around face, deleting edges whose right face is also NULL */
   eNext = eStart->Lnext;
@@ -566,7 +565,7 @@ void __gl_meshZapFace( GLUface *fZap )
 
     e->Lface = NULL;
     if( e->Rface == NULL ) {
-      /* delete the edge -- see __gl_MeshDelete above */
+      /* delete the edge -- see _tess_MeshDelete above */
 
       if( e->Onext == e ) {
 	KillVertex( e->Org, NULL );
@@ -597,16 +596,16 @@ void __gl_meshZapFace( GLUface *fZap )
 }
 
 
-/* __gl_meshNewMesh() creates a new mesh with no edges, no vertices,
+/* _tess_meshNewMesh() creates a new mesh with no edges, no vertices,
  * and no loops (what we usually call a "face").
  */
-GLUmesh *__gl_meshNewMesh( void )
+TessMesh *_tess_meshNewMesh( void )
 {
-  GLUvertex *v;
-  GLUface *f;
-  GLUhalfEdge *e;
-  GLUhalfEdge *eSym;
-  GLUmesh *mesh = (GLUmesh *)memAlloc( sizeof( GLUmesh ));
+  TessVertex *v;
+  TessFace *f;
+  TessHalfEdge *e;
+  TessHalfEdge *eSym;
+  TessMesh *mesh = (TessMesh *)memAlloc( sizeof( TessMesh ));
   if (mesh == NULL) {
      return NULL;
   }
@@ -649,17 +648,17 @@ GLUmesh *__gl_meshNewMesh( void )
 }
 
 
-/* __gl_meshUnion( mesh1, mesh2 ) forms the union of all structures in
+/* _tess_meshUnion( mesh1, mesh2 ) forms the union of all structures in
  * both meshes, and returns the new mesh (the old meshes are destroyed).
  */
-GLUmesh *__gl_meshUnion( GLUmesh *mesh1, GLUmesh *mesh2 )
+TessMesh *_tess_meshUnion( TessMesh *mesh1, TessMesh *mesh2 )
 {
-  GLUface *f1 = &mesh1->fHead;
-  GLUvertex *v1 = &mesh1->vHead;
-  GLUhalfEdge *e1 = &mesh1->eHead;
-  GLUface *f2 = &mesh2->fHead;
-  GLUvertex *v2 = &mesh2->vHead;
-  GLUhalfEdge *e2 = &mesh2->eHead;
+  TessFace *f1 = &mesh1->fHead;
+  TessVertex *v1 = &mesh1->vHead;
+  TessHalfEdge *e1 = &mesh1->eHead;
+  TessFace *f2 = &mesh2->fHead;
+  TessVertex *v2 = &mesh2->vHead;
+  TessHalfEdge *e2 = &mesh2->eHead;
 
   /* Add the faces, vertices, and edges of mesh2 to those of mesh1 */
   if( f2->next != f2 ) {
@@ -690,14 +689,14 @@ GLUmesh *__gl_meshUnion( GLUmesh *mesh1, GLUmesh *mesh2 )
 
 #ifdef DELETE_BY_ZAPPING
 
-/* __gl_meshDeleteMesh( mesh ) will free all storage for any valid mesh.
+/* _tess_meshDeleteMesh( mesh ) will free all storage for any valid mesh.
  */
-void __gl_meshDeleteMesh( GLUmesh *mesh )
+void _tess_meshDeleteMesh( TessMesh *mesh )
 {
-  GLUface *fHead = &mesh->fHead;
+  TessFace *fHead = &mesh->fHead;
 
   while( fHead->next != fHead ) {
-    __gl_meshZapFace( fHead->next );
+    _tess_meshZapFace( fHead->next );
   }
   assert( mesh->vHead.next == &mesh->vHead );
 
@@ -706,13 +705,13 @@ void __gl_meshDeleteMesh( GLUmesh *mesh )
 
 #else
 
-/* __gl_meshDeleteMesh( mesh ) will free all storage for any valid mesh.
+/* _tess_meshDeleteMesh( mesh ) will free all storage for any valid mesh.
  */
-void __gl_meshDeleteMesh( GLUmesh *mesh )
+void _tess_meshDeleteMesh( TessMesh *mesh )
 {
-  GLUface *f, *fNext;
-  GLUvertex *v, *vNext;
-  GLUhalfEdge *e, *eNext;
+  TessFace *f, *fNext;
+  TessVertex *v, *vNext;
+  TessHalfEdge *e, *eNext;
 
   for( f = mesh->fHead.next; f != &mesh->fHead; f = fNext ) {
     fNext = f->next;
@@ -737,16 +736,16 @@ void __gl_meshDeleteMesh( GLUmesh *mesh )
 
 #ifndef NDEBUG
 
-/* __gl_meshCheckMesh( mesh ) checks a mesh for self-consistency.
+/* _tess_meshCheckMesh( mesh ) checks a mesh for self-consistency.
  */
-void __gl_meshCheckMesh( GLUmesh *mesh )
+void _tess_meshCheckMesh( TessMesh *mesh )
 {
-  GLUface *fHead = &mesh->fHead;
-  GLUvertex *vHead = &mesh->vHead;
-  GLUhalfEdge *eHead = &mesh->eHead;
-  GLUface *f, *fPrev;
-  GLUvertex *v, *vPrev;
-  GLUhalfEdge *e, *ePrev;
+  TessFace *fHead = &mesh->fHead;
+  TessVertex *vHead = &mesh->vHead;
+  TessHalfEdge *eHead = &mesh->eHead;
+  TessFace *f, *fPrev;
+  TessVertex *v, *vPrev;
+  TessHalfEdge *e, *ePrev;
 
   fPrev = fHead;
   for( fPrev = fHead ; (f = fPrev->next) != fHead; fPrev = f) {

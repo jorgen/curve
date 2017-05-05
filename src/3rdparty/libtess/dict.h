@@ -41,19 +41,19 @@
 #define Dict		DictList
 #define DictNode	DictListNode
 
-#define dictNewDict(frame,leq)		__gl_dictListNewDict(frame,leq)
-#define dictDeleteDict(dict)		__gl_dictListDeleteDict(dict)
+#define dictNewDict(frame,leq)		_tess_dictListNewDict(frame,leq)
+#define dictDeleteDict(dict)		_tess_dictListDeleteDict(dict)
 
-#define dictSearch(dict,key)		__gl_dictListSearch(dict,key)
-#define dictInsert(dict,key)		__gl_dictListInsert(dict,key)
-#define dictInsertBefore(dict,node,key)	__gl_dictListInsertBefore(dict,node,key)
-#define dictDelete(dict,node)		__gl_dictListDelete(dict,node)
+#define dictSearch(dict,key)		_tess_dictListSearch(dict,key)
+#define dictInsert(dict,key)		_tess_dictListInsert(dict,key)
+#define dictInsertBefore(dict,node,key)	_tess_dictListInsertBefore(dict,node,key)
+#define dictDelete(dict,node)		_tess_dictListDelete(dict,node)
 
-#define dictKey(n)			__gl_dictListKey(n)
-#define dictSucc(n)			__gl_dictListSucc(n)
-#define dictPred(n)			__gl_dictListPred(n)
-#define dictMin(d)			__gl_dictListMin(d)
-#define dictMax(d)			__gl_dictListMax(d)
+#define dictKey(n)			_tess_dictListKey(n)
+#define dictSucc(n)			_tess_dictListSucc(n)
+#define dictPred(n)			_tess_dictListPred(n)
+#define dictMin(d)			_tess_dictListMin(d)
+#define dictMax(d)			_tess_dictListMax(d)
 
 
 
@@ -75,12 +75,12 @@ DictNode	*dictSearch( Dict *dict, DictKey key );
 DictNode	*dictInsertBefore( Dict *dict, DictNode *node, DictKey key );
 void		dictDelete( Dict *dict, DictNode *node );
 
-#define		__gl_dictListKey(n)	((n)->key)
-#define		__gl_dictListSucc(n)	((n)->next)
-#define		__gl_dictListPred(n)	((n)->prev)
-#define		__gl_dictListMin(d)	((d)->head.next)
-#define		__gl_dictListMax(d)	((d)->head.prev)
-#define	       __gl_dictListInsert(d,k) (dictInsertBefore((d),&(d)->head,(k)))
+#define		_tess_dictListKey(n)	((n)->key)
+#define		_tess_dictListSucc(n)	((n)->next)
+#define		_tess_dictListPred(n)	((n)->prev)
+#define		_tess_dictListMin(d)	((d)->head.next)
+#define		_tess_dictListMax(d)	((d)->head.prev)
+#define	       _tess_dictListInsert(d,k) (dictInsertBefore((d),&(d)->head,(k)))
 
 
 /*** Private data structures ***/

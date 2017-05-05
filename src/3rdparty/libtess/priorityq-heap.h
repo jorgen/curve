@@ -41,8 +41,8 @@
 #define PQhandle		PQHeapHandle
 #define PriorityQ		PriorityQHeap
 
-#define pqNewPriorityQ(leq)	__gl_pqHeapNewPriorityQ(leq)
-#define pqDeletePriorityQ(pq)	__gl_pqHeapDeletePriorityQ(pq)
+#define pqNewPriorityQ(leq)	_tess_pqHeapNewPriorityQ(leq)
+#define pqDeletePriorityQ(pq)	_tess_pqHeapDeletePriorityQ(pq)
 
 /* The basic operations are insertion of a new key (pqInsert),
  * and examination/extraction of a key whose value is minimum
@@ -57,12 +57,12 @@
  * If the heap is empty, pqMinimum/pqExtractMin will return a NULL key.
  * This may also be tested with pqIsEmpty.
  */
-#define pqInit(pq)		__gl_pqHeapInit(pq)
-#define pqInsert(pq,key)	__gl_pqHeapInsert(pq,key)
-#define pqMinimum(pq)		__gl_pqHeapMinimum(pq)
-#define pqExtractMin(pq)	__gl_pqHeapExtractMin(pq)
-#define pqDelete(pq,handle)	__gl_pqHeapDelete(pq,handle)
-#define pqIsEmpty(pq)		__gl_pqHeapIsEmpty(pq)
+#define pqInit(pq)		_tess_pqHeapInit(pq)
+#define pqInsert(pq,key)	_tess_pqHeapInsert(pq,key)
+#define pqMinimum(pq)		_tess_pqHeapMinimum(pq)
+#define pqExtractMin(pq)	_tess_pqHeapExtractMin(pq)
+#define pqDelete(pq,handle)	_tess_pqHeapDelete(pq,handle)
+#define pqIsEmpty(pq)		_tess_pqHeapIsEmpty(pq)
 
 
 /* Since we support deletion the data structure is a little more
@@ -101,7 +101,7 @@ PQkey		pqExtractMin( PriorityQ *pq );
 void		pqDelete( PriorityQ *pq, PQhandle handle );
 
 
-#define __gl_pqHeapMinimum(pq)	((pq)->handles[(pq)->nodes[1].handle].key)
-#define __gl_pqHeapIsEmpty(pq)	((pq)->size == 0)
+#define _tess_pqHeapMinimum(pq)	((pq)->handles[(pq)->nodes[1].handle].key)
+#define _tess_pqHeapIsEmpty(pq)	((pq)->size == 0)
 
 #endif

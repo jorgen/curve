@@ -32,7 +32,6 @@
 **
 */
 
-#include "gluos.h"
 #include "mesh.h"
 #include "tess.h"
 #include "normal.h"
@@ -49,9 +48,9 @@
 #define Dot(u,v)	(u[0]*v[0] + u[1]*v[1] + u[2]*v[2])
 
 #if 0
-static void Normalize( GLdouble v[3] )
+static void Normalize( double v[3] )
 {
-  GLdouble len = v[0]*v[0] + v[1]*v[1] + v[2]*v[2];
+  double len = v[0]*v[0] + v[1]*v[1] + v[2]*v[2];
 
   assert( len > 0 );
   len = sqrt( len );
@@ -64,7 +63,7 @@ static void Normalize( GLdouble v[3] )
 #undef	ABS
 #define ABS(x)	((x) < 0 ? -(x) : (x))
 
-static int LongAxis( GLdouble v[3] )
+static int LongAxis( double v[3] )
 {
   int i = 0;
 
@@ -73,17 +72,17 @@ static int LongAxis( GLdouble v[3] )
   return i;
 }
 
-static void ComputeNormal( GLUtesselator *tess, GLdouble norm[3] )
+static void ComputeNormal( TessTesselator *tess, double norm[3] )
 {
-  GLUvertex *v, *v1, *v2;
-  GLdouble c, tLen2, maxLen2;
-  GLdouble maxVal[3], minVal[3], d1[3], d2[3], tNorm[3];
-  GLUvertex *maxVert[3], *minVert[3];
-  GLUvertex *vHead = &tess->mesh->vHead;
+  TessVertex *v, *v1, *v2;
+  double c, tLen2, maxLen2;
+  double maxVal[3], minVal[3], d1[3], d2[3], tNorm[3];
+  TessVertex *maxVert[3], *minVert[3];
+  TessVertex *vHead = &tess->mesh->vHead;
   int i;
 
-  maxVal[0] = maxVal[1] = maxVal[2] = -2 * GLU_TESS_MAX_COORD;
-  minVal[0] = minVal[1] = minVal[2] = 2 * GLU_TESS_MAX_COORD;
+  maxVal[0] = maxVal[1] = maxVal[2] = -2 * TESS_MAX_COORD;
+  minVal[0] = minVal[1] = minVal[2] = 2 * TESS_MAX_COORD;
 
   for( v = vHead->next; v != vHead; v = v->next ) {
     for( i = 0; i < 3; ++i ) {
@@ -138,12 +137,12 @@ static void ComputeNormal( GLUtesselator *tess, GLdouble norm[3] )
 }
 
 
-static void CheckOrientation( GLUtesselator *tess )
+static void CheckOrientation( TessTesselator *tess )
 {
-  GLdouble area;
-  GLUface *f, *fHead = &tess->mesh->fHead;
-  GLUvertex *v, *vHead = &tess->mesh->vHead;
-  GLUhalfEdge *e;
+  double area;
+  TessFace *f, *fHead = &tess->mesh->fHead;
+  TessVertex *v, *vHead = &tess->mesh->vHead;
+  TessHalfEdge *e;
 
   /* When we compute the normal automatically, we choose the orientation
    * so that the sum of the signed areas of all contours is non-negative.
@@ -195,11 +194,11 @@ extern int RandomSweep;
 /* Determine the polygon normal and project vertices onto the plane
  * of the polygon.
  */
-void __gl_projectPolygon( GLUtesselator *tess )
+void _tess_projectPolygon( TessTesselator *tess )
 {
-  GLUvertex *v, *vHead = &tess->mesh->vHead;
-  GLdouble norm[3];
-  GLdouble *sUnit, *tUnit;
+  TessVertex *v, *vHead = &tess->mesh->vHead;
+  double norm[3];
+  double *sUnit, *tUnit;
   int i, computedNormal = FALSE;
 
   norm[0] = tess->normal[0];

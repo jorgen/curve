@@ -33,8 +33,8 @@ The interface
   The tesselator state is maintained in a "tesselator object".
   These are allocated and destroyed using
 
-     GLUtesselator *gluNewTess( void );
-     void gluDeleteTess( GLUtesselator *tess );
+     Tesselator *gluNewTess( void );
+     void gluDeleteTess( Tesselator *tess );
 
   Several tesselator objects may be used simultaneously.
 
@@ -43,11 +43,11 @@ The interface
   
   The input contours are specified with the following routines:
 
-     void gluTessBeginPolygon( GLUtesselator *tess );
-     void gluTessBeginContour( GLUtesselator *tess );
-     void gluTessVertex( GLUtesselator *tess, GLUcoord coords[3], void *data );
-     void gluTessEndContour( GLUtesselator *tess );
-     void gluTessEndPolygon( GLUtesselator *tess );
+     void gluTessBeginPolygon( Tesselator *tess );
+     void gluTessBeginContour( Tesselator *tess );
+     void gluTessVertex( Tesselator *tess, GLUcoord coords[3], void *data );
+     void gluTessEndContour( Tesselator *tess );
+     void gluTessEndPolygon( Tesselator *tess );
 
   Within each BeginPolygon/EndPolygon pair, there can be zero or more
   calls to BeginContour/EndContour.  Within each contour, there are zero
@@ -78,14 +78,14 @@ The interface
 
   Callbacks are specified by the client using
 
-     void gluTessCallback( GLUtesselator *tess, GLenum which, void (*fn)());
+     void gluTessCallback( Tesselator *tess, TessEnum which, void (*fn)());
 
   If "fn" is NULL, any previously defined callback is discarded.
   
   The callbacks used to provide output are:	/* which == */
 
-     void begin( GLenum type );			/* GLU_TESS_BEGIN */
-     void edgeFlag( GLboolean flag );		/* GLU_TESS_EDGE_FLAG */
+     void begin( TessEnum type );			/* GLU_TESS_BEGIN */
+     void edgeFlag( bool flag );		/* GLU_TESS_EDGE_FLAG */
      void vertex( void *data );			/* GLU_TESS_VERTEX */
      void end( void );				/* GLU_TESS_END */
 
@@ -112,7 +112,7 @@ The interface
   Other Callbacks
   ---------------
 
-   void mesh( GLUmesh *mesh );			/* GLU_TESS_MESH */
+   void mesh( TessMesh *mesh );			/* GLU_TESS_MESH */
 
    - Returns an explicit mesh, represented using the quad-edge structure
      (Guibas/Stolfi '85).  Other implementations of this interface might
@@ -120,7 +120,7 @@ The interface
      SGI extension.  When the mesh is no longer needed, it should be freed
      using
 
-	void gluDeleteMesh( GLUmesh *mesh );
+	void gluDeleteMesh( TessMesh *mesh );
 
      There is a brief description of this data structure in the include
      file "mesh.h".  For the full details, see L. Guibas and J. Stolfi,
@@ -131,7 +131,7 @@ The interface
      available at the Stanford bookstore (and taught during the fall
      quarter).
 
-   void error( GLenum errno );			/* GLU_TESS_ERROR */
+   void error( TessEnum errno );			/* GLU_TESS_ERROR */
 
    - errno is one of	GLU_TESS_MISSING_BEGIN_POLYGON,
 			GLU_TESS_MISSING_END_POLYGON,
@@ -196,7 +196,7 @@ The interface
   Control over Tesselation
   ------------------------
   
-   void gluTessProperty( GLUtesselator *tess, GLenum which, GLUcoord value );
+   void gluTessProperty( Tesselator *tess, TessEnum which, GLUcoord value );
 
    Properties defined:
 
@@ -255,7 +255,7 @@ The interface
       Two edges are merged only when both endpoints are identical.
 
 
-   void gluTessNormal( GLUtesselator *tess,
+   void gluTessNormal( Tesselator *tess,
 		      GLUcoord x, GLUcoord y, GLUcoord z )
 
     - Lets the user supply the polygon normal, if known.  All input data
@@ -286,11 +286,11 @@ The interface
   The preferred interface is the one described above.  The following
   routines are obsolete, and are provided only for backward compatibility:
 
-    typedef GLUtesselator GLUtriangulatorObj;	/* obsolete name */
+    typedef Tesselator GLUtriangulatorObj;	/* obsolete name */
 
-    void gluBeginPolygon( GLUtesselator *tess );
-    void gluNextContour( GLUtesselator *tess, GLenum type );
-    void gluEndPolygon( GLUtesselator *tess );
+    void gluBeginPolygon( Tesselator *tess );
+    void gluNextContour( Tesselator *tess, TessEnum type );
+    void gluEndPolygon( Tesselator *tess );
   
   "type" is one of GLU_EXTERIOR, GLU_INTERIOR, GLU_CCW, GLU_CW, or
   GLU_UNKNOWN.  It is ignored by the current GLU tesselator.

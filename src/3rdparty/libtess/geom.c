@@ -32,19 +32,18 @@
 **
 */
 
-#include "gluos.h"
 #include <assert.h>
 #include "mesh.h"
 #include "geom.h"
 
-int __gl_vertLeq( GLUvertex *u, GLUvertex *v )
+int _tess_vertLeq( TessVertex *u, TessVertex *v )
 {
   /* Returns TRUE if u is lexicographically <= v. */
 
   return VertLeq( u, v );
 }
 
-GLdouble __gl_edgeEval( GLUvertex *u, GLUvertex *v, GLUvertex *w )
+double _tess_edgeEval( TessVertex *u, TessVertex *v, TessVertex *w )
 {
   /* Given three vertices u,v,w such that VertLeq(u,v) && VertLeq(v,w),
    * evaluates the t-coord of the edge uw at the s-coord of the vertex v.
@@ -56,7 +55,7 @@ GLdouble __gl_edgeEval( GLUvertex *u, GLUvertex *v, GLUvertex *w )
    * let r be the negated result (this evaluates (uw)(v->s)), then
    * r is guaranteed to satisfy MIN(u->t,w->t) <= r <= MAX(u->t,w->t).
    */
-  GLdouble gapL, gapR;
+  double gapL, gapR;
 
   assert( VertLeq( u, v ) && VertLeq( v, w ));
   
@@ -74,13 +73,13 @@ GLdouble __gl_edgeEval( GLUvertex *u, GLUvertex *v, GLUvertex *w )
   return 0;
 }
 
-GLdouble __gl_edgeSign( GLUvertex *u, GLUvertex *v, GLUvertex *w )
+double _tess_edgeSign( TessVertex *u, TessVertex *v, TessVertex *w )
 {
   /* Returns a number whose sign matches EdgeEval(u,v,w) but which
    * is cheaper to evaluate.  Returns > 0, == 0 , or < 0
    * as v is above, on, or below the edge uw.
    */
-  GLdouble gapL, gapR;
+  double gapL, gapR;
 
   assert( VertLeq( u, v ) && VertLeq( v, w ));
   
@@ -99,7 +98,7 @@ GLdouble __gl_edgeSign( GLUvertex *u, GLUvertex *v, GLUvertex *w )
  * Define versions of EdgeSign, EdgeEval with s and t transposed.
  */
 
-GLdouble __gl_transEval( GLUvertex *u, GLUvertex *v, GLUvertex *w )
+double _tess_transEval( TessVertex *u, TessVertex *v, TessVertex *w )
 {
   /* Given three vertices u,v,w such that TransLeq(u,v) && TransLeq(v,w),
    * evaluates the t-coord of the edge uw at the s-coord of the vertex v.
@@ -111,7 +110,7 @@ GLdouble __gl_transEval( GLUvertex *u, GLUvertex *v, GLUvertex *w )
    * let r be the negated result (this evaluates (uw)(v->t)), then
    * r is guaranteed to satisfy MIN(u->s,w->s) <= r <= MAX(u->s,w->s).
    */
-  GLdouble gapL, gapR;
+  double gapL, gapR;
 
   assert( TransLeq( u, v ) && TransLeq( v, w ));
   
@@ -129,13 +128,13 @@ GLdouble __gl_transEval( GLUvertex *u, GLUvertex *v, GLUvertex *w )
   return 0;
 }
 
-GLdouble __gl_transSign( GLUvertex *u, GLUvertex *v, GLUvertex *w )
+double _tess_transSign( TessVertex *u, TessVertex *v, TessVertex *w )
 {
   /* Returns a number whose sign matches TransEval(u,v,w) but which
    * is cheaper to evaluate.  Returns > 0, == 0 , or < 0
    * as v is above, on, or below the edge uw.
    */
-  GLdouble gapL, gapR;
+  double gapL, gapR;
 
   assert( TransLeq( u, v ) && TransLeq( v, w ));
   
@@ -150,7 +149,7 @@ GLdouble __gl_transSign( GLUvertex *u, GLUvertex *v, GLUvertex *w )
 }
 
 
-int __gl_vertCCW( GLUvertex *u, GLUvertex *v, GLUvertex *w )
+int _tess_vertCCW( TessVertex *u, TessVertex *v, TessVertex *w )
 {
   /* For almost-degenerate situations, the results are not reliable.
    * Unless the floating-point arithmetic can be performed without
@@ -185,7 +184,7 @@ int __gl_vertCCW( GLUvertex *u, GLUvertex *v, GLUvertex *w )
 #include <stdlib.h>
 extern int RandomInterpolate;
 
-GLdouble Interpolate( GLdouble a, GLdouble x, GLdouble b, GLdouble y)
+double Interpolate( double a, double x, double b, double y)
 {
 printf("*********************%d\n",RandomInterpolate);
   if( RandomInterpolate ) {
@@ -198,17 +197,17 @@ printf("*********************%d\n",RandomInterpolate);
 
 #endif
 
-#define Swap(a,b)	do { GLUvertex *t = a; a = b; b = t; } while (0)
+#define Swap(a,b)	do { TessVertex *t = a; a = b; b = t; } while (0)
 
-void __gl_edgeIntersect( GLUvertex *o1, GLUvertex *d1,
-			 GLUvertex *o2, GLUvertex *d2,
-			 GLUvertex *v )
+void _tess_edgeIntersect( TessVertex *o1, TessVertex *d1,
+			 TessVertex *o2, TessVertex *d2,
+			 TessVertex *v )
 /* Given edges (o1,d1) and (o2,d2), compute their point of intersection.
  * The computed point is guaranteed to lie in the intersection of the
  * bounding rectangles defined by each edge.
  */
 {
-  GLdouble z1, z2;
+  double z1, z2;
 
   /* This is certainly not the most efficient way to find the intersection
    * of two line segments, but it is very numerically stable.

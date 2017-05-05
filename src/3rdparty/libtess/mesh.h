@@ -35,13 +35,13 @@
 #ifndef __mesh_h_
 #define __mesh_h_
 
-#include <GL/glu.h>
+#include <stdbool.h>
 
-typedef struct GLUmesh GLUmesh; 
+typedef struct TessMesh TessMesh; 
 
-typedef struct GLUvertex GLUvertex;
-typedef struct GLUface GLUface;
-typedef struct GLUhalfEdge GLUhalfEdge;
+typedef struct TessVertex TessVertex;
+typedef struct TessFace TessFace;
+typedef struct TessHalfEdge TessHalfEdge;
 
 typedef struct ActiveRegion ActiveRegion;	/* Internal data */
 
@@ -103,45 +103,45 @@ typedef struct ActiveRegion ActiveRegion;	/* Internal data */
  *
  * The mesh does NOT support isolated vertices; a vertex is deleted along
  * with its last edge.  Similarly when two faces are merged, one of the
- * faces is deleted (see __gl_meshDelete below).  For mesh operations,
+ * faces is deleted (see _tess_meshDelete below).  For mesh operations,
  * all face (loop) and vertex pointers must not be NULL.  However, once
- * mesh manipulation is finished, __gl_MeshZapFace can be used to delete
+ * mesh manipulation is finished, _tess_MeshZapFace can be used to delete
  * faces of the mesh, one at a time.  All external faces can be "zapped"
  * before the mesh is returned to the client; then a NULL face indicates
  * a region which is not part of the output polygon.
  */
 
-struct GLUvertex {
-  GLUvertex	*next;		/* next vertex (never NULL) */
-  GLUvertex	*prev;		/* previous vertex (never NULL) */
-  GLUhalfEdge	*anEdge;	/* a half-edge with this origin */
+struct TessVertex {
+  TessVertex	*next;		/* next vertex (never NULL) */
+  TessVertex	*prev;		/* previous vertex (never NULL) */
+  TessHalfEdge	*anEdge;	/* a half-edge with this origin */
   void		*data;		/* client's data */
 
   /* Internal data (keep hidden) */
-  GLdouble	coords[3];	/* vertex location in 3D */
-  GLdouble	s, t;		/* projection onto the sweep plane */
+  double	coords[3];	/* vertex location in 3D */
+  double	s, t;		/* projection onto the sweep plane */
   long		pqHandle;	/* to allow deletion from priority queue */
 };
 
-struct GLUface {
-  GLUface	*next;		/* next face (never NULL) */
-  GLUface	*prev;		/* previous face (never NULL) */
-  GLUhalfEdge	*anEdge;	/* a half edge with this left face */
+struct TessFace {
+  TessFace	*next;		/* next face (never NULL) */
+  TessFace	*prev;		/* previous face (never NULL) */
+  TessHalfEdge	*anEdge;	/* a half edge with this left face */
   void		*data;		/* room for client's data */
 
   /* Internal data (keep hidden) */
-  GLUface	*trail;		/* "stack" for conversion to strips */
-  GLboolean	marked;		/* flag for conversion to strips */
-  GLboolean	inside;		/* this face is in the polygon interior */
+  TessFace	*trail;		/* "stack" for conversion to strips */
+  bool	marked;		/* flag for conversion to strips */
+  bool	inside;		/* this face is in the polygon interior */
 };
 
-struct GLUhalfEdge {
-  GLUhalfEdge	*next;		/* doubly-linked list (prev==Sym->next) */
-  GLUhalfEdge	*Sym;		/* same edge, opposite direction */
-  GLUhalfEdge	*Onext;		/* next edge CCW around origin */
-  GLUhalfEdge	*Lnext;		/* next edge CCW around left face */
-  GLUvertex	*Org;		/* origin vertex (Overtex too long) */
-  GLUface	*Lface;		/* left face */
+struct TessHalfEdge {
+  TessHalfEdge	*next;		/* doubly-linked list (prev==Sym->next) */
+  TessHalfEdge	*Sym;		/* same edge, opposite direction */
+  TessHalfEdge	*Onext;		/* next edge CCW around origin */
+  TessHalfEdge	*Lnext;		/* next edge CCW around left face */
+  TessVertex	*Org;		/* origin vertex (Overtex too long) */
+  TessFace	*Lface;		/* left face */
 
   /* Internal data (keep hidden) */
   ActiveRegion	*activeRegion;	/* a region with this upper edge (sweep.c) */
@@ -160,11 +160,11 @@ struct GLUhalfEdge {
 #define Rnext	Oprev->Sym	/* 3 pointers */
 
 
-struct GLUmesh {
-  GLUvertex	vHead;		/* dummy header for vertex list */
-  GLUface	fHead;		/* dummy header for face list */
-  GLUhalfEdge	eHead;		/* dummy header for edge list */
-  GLUhalfEdge	eHeadSym;	/* and its symmetric counterpart */
+struct TessMesh {
+  TessVertex	vHead;		/* dummy header for vertex list */
+  TessFace	fHead;		/* dummy header for face list */
+  TessHalfEdge	eHead;		/* dummy header for edge list */
+  TessHalfEdge	eHeadSym;	/* and its symmetric counterpart */
 };
 
 /* The mesh operations below have three motivations: completeness,
@@ -183,10 +183,10 @@ struct GLUmesh {
  *
  * ********************** Basic Edge Operations **************************
  *
- * __gl_meshMakeEdge( mesh ) creates one edge, two vertices, and a loop.
+ * _tess_meshMakeEdge( mesh ) creates one edge, two vertices, and a loop.
  * The loop (face) consists of the two new half-edges.
  *
- * __gl_meshSplice( eOrg, eDst ) is the basic operation for changing the
+ * _tess_meshSplice( eOrg, eDst ) is the basic operation for changing the
  * mesh connectivity and topology.  It changes the mesh so that
  *	eOrg->Onext <- OLD( eDst->Onext )
  *	eDst->Onext <- OLD( eOrg->Onext )
@@ -202,7 +202,7 @@ struct GLUmesh {
  *  - if eOrg->Lface != eDst->Lface, two distinct loops are joined into one
  * In both cases, eDst->Lface is changed and eOrg->Lface is unaffected.
  *
- * __gl_meshDelete( eDel ) removes the edge eDel.  There are several cases:
+ * _tess_meshDelete( eDel ) removes the edge eDel.  There are several cases:
  * if (eDel->Lface != eDel->Rface), we join two loops into one; the loop
  * eDel->Lface is deleted.  Otherwise, we are splitting one loop into two;
  * the newly created loop will contain eDel->Dst.  If the deletion of eDel
@@ -210,15 +210,15 @@ struct GLUmesh {
  *
  * ********************** Other Edge Operations **************************
  *
- * __gl_meshAddEdgeVertex( eOrg ) creates a new edge eNew such that
+ * _tess_meshAddEdgeVertex( eOrg ) creates a new edge eNew such that
  * eNew == eOrg->Lnext, and eNew->Dst is a newly created vertex.
  * eOrg and eNew will have the same left face.
  *
- * __gl_meshSplitEdge( eOrg ) splits eOrg into two edges eOrg and eNew,
+ * _tess_meshSplitEdge( eOrg ) splits eOrg into two edges eOrg and eNew,
  * such that eNew == eOrg->Lnext.  The new vertex is eOrg->Dst == eNew->Org.
  * eOrg and eNew will have the same left face.
  *
- * __gl_meshConnect( eOrg, eDst ) creates a new edge from eOrg->Dst
+ * _tess_meshConnect( eOrg, eDst ) creates a new edge from eOrg->Dst
  * to eDst->Org, and returns the corresponding half-edge eNew.
  * If eOrg->Lface == eDst->Lface, this splits one loop into two,
  * and the newly created loop is eNew->Lface.  Otherwise, two disjoint
@@ -226,41 +226,41 @@ struct GLUmesh {
  *
  * ************************ Other Operations *****************************
  *
- * __gl_meshNewMesh() creates a new mesh with no edges, no vertices,
+ * _tess_meshNewMesh() creates a new mesh with no edges, no vertices,
  * and no loops (what we usually call a "face").
  *
- * __gl_meshUnion( mesh1, mesh2 ) forms the union of all structures in
+ * _tess_meshUnion( mesh1, mesh2 ) forms the union of all structures in
  * both meshes, and returns the new mesh (the old meshes are destroyed).
  *
- * __gl_meshDeleteMesh( mesh ) will free all storage for any valid mesh.
+ * _tess_meshDeleteMesh( mesh ) will free all storage for any valid mesh.
  *
- * __gl_meshZapFace( fZap ) destroys a face and removes it from the
+ * _tess_meshZapFace( fZap ) destroys a face and removes it from the
  * global face list.  All edges of fZap will have a NULL pointer as their
  * left face.  Any edges which also have a NULL pointer as their right face
  * are deleted entirely (along with any isolated vertices this produces).
  * An entire mesh can be deleted by zapping its faces, one at a time,
  * in any order.  Zapped faces cannot be used in further mesh operations!
  *
- * __gl_meshCheckMesh( mesh ) checks a mesh for self-consistency.
+ * _tess_meshCheckMesh( mesh ) checks a mesh for self-consistency.
  */
 
-GLUhalfEdge	*__gl_meshMakeEdge( GLUmesh *mesh );
-int		__gl_meshSplice( GLUhalfEdge *eOrg, GLUhalfEdge *eDst );
-int		__gl_meshDelete( GLUhalfEdge *eDel );
+TessHalfEdge	*_tess_meshMakeEdge( TessMesh *mesh );
+int		_tess_meshSplice( TessHalfEdge *eOrg, TessHalfEdge *eDst );
+int		_tess_meshDelete( TessHalfEdge *eDel );
 
-GLUhalfEdge	*__gl_meshAddEdgeVertex( GLUhalfEdge *eOrg );
-GLUhalfEdge	*__gl_meshSplitEdge( GLUhalfEdge *eOrg );
-GLUhalfEdge	*__gl_meshConnect( GLUhalfEdge *eOrg, GLUhalfEdge *eDst );
+TessHalfEdge	*_tess_meshAddEdgeVertex( TessHalfEdge *eOrg );
+TessHalfEdge	*_tess_meshSplitEdge( TessHalfEdge *eOrg );
+TessHalfEdge	*_tess_meshConnect( TessHalfEdge *eOrg, TessHalfEdge *eDst );
 
-GLUmesh		*__gl_meshNewMesh( void );
-GLUmesh		*__gl_meshUnion( GLUmesh *mesh1, GLUmesh *mesh2 );
-void		__gl_meshDeleteMesh( GLUmesh *mesh );
-void		__gl_meshZapFace( GLUface *fZap );
+TessMesh		*_tess_meshNewMesh( void );
+TessMesh		*_tess_meshUnion( TessMesh *mesh1, TessMesh *mesh2 );
+void		_tess_meshDeleteMesh( TessMesh *mesh );
+void		_tess_meshZapFace( TessFace *fZap );
 
 #ifdef NDEBUG
-#define		__gl_meshCheckMesh( mesh )
+#define		_tess_meshCheckMesh( mesh )
 #else
-void		__gl_meshCheckMesh( GLUmesh *mesh );
+void		_tess_meshCheckMesh( TessMesh *mesh );
 #endif
 
 #endif

@@ -51,15 +51,15 @@
                          ((u)->s == (v)->s && (u)->t <= (v)->t))
 #endif
 
-#define EdgeEval(u,v,w) __gl_edgeEval(u,v,w)
-#define EdgeSign(u,v,w) __gl_edgeSign(u,v,w)
+#define EdgeEval(u,v,w) _tess_edgeEval(u,v,w)
+#define EdgeSign(u,v,w) _tess_edgeSign(u,v,w)
 
 /* Versions of VertLeq, EdgeSign, EdgeEval with s and t transposed. */
 
 #define TransLeq(u,v)	(((u)->t < (v)->t) || \
                          ((u)->t == (v)->t && (u)->s <= (v)->s))
-#define TransEval(u,v,w)	__gl_transEval(u,v,w)
-#define TransSign(u,v,w)	__gl_transSign(u,v,w)
+#define TransEval(u,v,w)	_tess_transEval(u,v,w)
+#define TransSign(u,v,w)	_tess_transSign(u,v,w)
 
 
 #define EdgeGoesLeft(e) 	VertLeq( (e)->Dst, (e)->Org )
@@ -69,16 +69,16 @@
 #define ABS(x)	((x) < 0 ? -(x) : (x))
 #define VertL1dist(u,v) (ABS(u->s - v->s) + ABS(u->t - v->t))
 
-#define VertCCW(u,v,w)	__gl_vertCCW(u,v,w)
+#define VertCCW(u,v,w)	_tess_vertCCW(u,v,w)
 
-int		__gl_vertLeq( GLUvertex *u, GLUvertex *v );
-GLdouble	__gl_edgeEval( GLUvertex *u, GLUvertex *v, GLUvertex *w );
-GLdouble	__gl_edgeSign( GLUvertex *u, GLUvertex *v, GLUvertex *w );
-GLdouble	__gl_transEval( GLUvertex *u, GLUvertex *v, GLUvertex *w );
-GLdouble	__gl_transSign( GLUvertex *u, GLUvertex *v, GLUvertex *w );
-int		__gl_vertCCW( GLUvertex *u, GLUvertex *v, GLUvertex *w );
-void		__gl_edgeIntersect( GLUvertex *o1, GLUvertex *d1,
-				    GLUvertex *o2, GLUvertex *d2,
-				    GLUvertex *v );
+int		_tess_vertLeq( TessVertex *u, TessVertex *v );
+double	_tess_edgeEval( TessVertex *u, TessVertex *v, TessVertex *w );
+double	_tess_edgeSign( TessVertex *u, TessVertex *v, TessVertex *w );
+double	_tess_transEval( TessVertex *u, TessVertex *v, TessVertex *w );
+double	_tess_transSign( TessVertex *u, TessVertex *v, TessVertex *w );
+int		_tess_vertCCW( TessVertex *u, TessVertex *v, TessVertex *w );
+void		_tess_edgeIntersect( TessVertex *o1, TessVertex *d1,
+				    TessVertex *o2, TessVertex *d2,
+				    TessVertex *v );
 
 #endif

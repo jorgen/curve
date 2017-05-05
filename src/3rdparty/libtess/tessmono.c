@@ -32,7 +32,6 @@
 **
 */
 
-#include "gluos.h"
 #include <stdlib.h>
 #include "geom.h"
 #include "mesh.h"
@@ -42,11 +41,11 @@
 #define AddWinding(eDst,eSrc)	(eDst->winding += eSrc->winding, \
 				 eDst->Sym->winding += eSrc->Sym->winding)
 
-/* __gl_meshTessellateMonoRegion( face ) tessellates a monotone region
+/* _tess_meshTessellateMonoRegion( face ) tessellates a monotone region
  * (what else would it do??)  The region must consist of a single
  * loop of half-edges (see mesh.h) oriented CCW.  "Monotone" in this
  * case means that any vertical line intersects the interior of the
- * region in a single interval.  
+ * region in a single interval.
  *
  * Tessellation consists of adding interior edges (actually pairs of
  * half-edges), to split the region into non-overlapping triangles.
@@ -69,9 +68,9 @@
  * to the fan is a simple orientation test.  By making the fan as large
  * as possible, we restore the invariant (check it yourself).
  */
-int __gl_meshTessellateMonoRegion( GLUface *face )
+int _tess_meshTessellateMonoRegion( TessFace *face )
 {
-  GLUhalfEdge *up, *lo;
+  TessHalfEdge *up, *lo;
 
   /* All edges are oriented CCW around the boundary of the region.
    * First, find the half-edge whose origin vertex is rightmost.
@@ -95,7 +94,7 @@ int __gl_meshTessellateMonoRegion( GLUface *face )
        */
       while( lo->Lnext != up && (EdgeGoesLeft( lo->Lnext )
 	     || EdgeSign( lo->Org, lo->Dst, lo->Lnext->Dst ) <= 0 )) {
-	GLUhalfEdge *tempHalfEdge= __gl_meshConnect( lo->Lnext, lo );
+	TessHalfEdge *tempHalfEdge= _tess_meshConnect( lo->Lnext, lo );
 	if (tempHalfEdge == NULL) return 0;
 	lo = tempHalfEdge->Sym;
       }
@@ -104,7 +103,7 @@ int __gl_meshTessellateMonoRegion( GLUface *face )
       /* lo->Org is on the left.  We can make CCW triangles from up->Dst. */
       while( lo->Lnext != up && (EdgeGoesRight( up->Lprev )
 	     || EdgeSign( up->Dst, up->Org, up->Lprev->Org ) >= 0 )) {
-	GLUhalfEdge *tempHalfEdge= __gl_meshConnect( up, up->Lprev );
+	TessHalfEdge *tempHalfEdge= _tess_meshConnect( up, up->Lprev );
 	if (tempHalfEdge == NULL) return 0;
 	up = tempHalfEdge->Sym;
       }
@@ -117,7 +116,7 @@ int __gl_meshTessellateMonoRegion( GLUface *face )
    */
   assert( lo->Lnext != up );
   while( lo->Lnext->Lnext != up ) {
-    GLUhalfEdge *tempHalfEdge= __gl_meshConnect( lo->Lnext, lo );
+    TessHalfEdge *tempHalfEdge= _tess_meshConnect( lo->Lnext, lo );
     if (tempHalfEdge == NULL) return 0;
     lo = tempHalfEdge->Sym;
   }
@@ -126,20 +125,20 @@ int __gl_meshTessellateMonoRegion( GLUface *face )
 }
 
 
-/* __gl_meshTessellateInterior( mesh ) tessellates each region of
+/* _tess_meshTessellateInterior( mesh ) tessellates each region of
  * the mesh which is marked "inside" the polygon.  Each such region
  * must be monotone.
  */
-int __gl_meshTessellateInterior( GLUmesh *mesh )
+int _tess_meshTessellateInterior( TessMesh *mesh )
 {
-  GLUface *f, *next;
+  TessFace *f, *next;
 
   /*LINTED*/
   for( f = mesh->fHead.next; f != &mesh->fHead; f = next ) {
     /* Make sure we don''t try to tessellate the new triangles. */
     next = f->next;
     if( f->inside ) {
-      if ( !__gl_meshTessellateMonoRegion( f ) ) return 0;
+      if ( !_tess_meshTessellateMonoRegion( f ) ) return 0;
     }
   }
 
@@ -147,28 +146,28 @@ int __gl_meshTessellateInterior( GLUmesh *mesh )
 }
 
 
-/* __gl_meshDiscardExterior( mesh ) zaps (ie. sets to NULL) all faces
+/* _tess_meshDiscardExterior( mesh ) zaps (ie. sets to NULL) all faces
  * which are not marked "inside" the polygon.  Since further mesh operations
  * on NULL faces are not allowed, the main purpose is to clean up the
  * mesh so that exterior loops are not represented in the data structure.
  */
-void __gl_meshDiscardExterior( GLUmesh *mesh )
+void _tess_meshDiscardExterior( TessMesh *mesh )
 {
-  GLUface *f, *next;
+  TessFace *f, *next;
 
   /*LINTED*/
   for( f = mesh->fHead.next; f != &mesh->fHead; f = next ) {
     /* Since f will be destroyed, save its next pointer. */
     next = f->next;
     if( ! f->inside ) {
-      __gl_meshZapFace( f );
+      _tess_meshZapFace( f );
     }
   }
 }
 
 #define MARKED_FOR_DELETION	0x7fffffff
 
-/* __gl_meshSetWindingNumber( mesh, value, keepOnlyBoundary ) resets the
+/* _tess_meshSetWindingNumber( mesh, value, keepOnlyBoundary ) resets the
  * winding numbers on all edges so that regions marked "inside" the
  * polygon have a winding number of "value", and regions outside
  * have a winding number of 0.
@@ -176,10 +175,10 @@ void __gl_meshDiscardExterior( GLUmesh *mesh )
  * If keepOnlyBoundary is TRUE, it also deletes all edges which do not
  * separate an interior region from an exterior one.
  */
-int __gl_meshSetWindingNumber( GLUmesh *mesh, int value,
-			        GLboolean keepOnlyBoundary )
+int _tess_meshSetWindingNumber( TessMesh *mesh, int value,
+			        bool keepOnlyBoundary )
 {
-  GLUhalfEdge *e, *eNext;
+  TessHalfEdge *e, *eNext;
 
   for( e = mesh->eHead.next; e != &mesh->eHead; e = eNext ) {
     eNext = e->next;
@@ -193,7 +192,7 @@ int __gl_meshSetWindingNumber( GLUmesh *mesh, int value,
       if( ! keepOnlyBoundary ) {
 	e->winding = 0;
       } else {
-	if ( !__gl_meshDelete( e ) ) return 0;
+	if ( !_tess_meshDelete( e ) ) return 0;
       }
     }
   }
