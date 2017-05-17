@@ -3,9 +3,15 @@ add_executable(curve main.cpp
                      renderer.cpp
                      memberlinkedlist.h
                      solidtriangleprogram.h
-                     solidtriangleprogram.cpp)
+                     solidtriangleprogram.cpp
+                     solidtrianglerenderer.h
+                     solidtrianglerenderer.cpp
+                     vao.h
+                     testitem.h
+                     testitem.cpp
+                     program.h)
 
-target_sources(curve PUBLIC 3rdparty/glad.c)
+target_sources(curve PUBLIC 3rdparty/glad/src/glad.c)
 source_group("glade" FILES 3rdparty/glad.c)
 
 file(GLOB libtess_headers 3rdparty/libtess/*.h)
@@ -27,4 +33,5 @@ source_group("libtess" FILES ${libtess_headers})
 source_group("libtess" FILES ${libtess_c})
 
 target_link_libraries(curve PRIVATE glfw)
-target_include_directories(curve PRIVATE 3rdparty)
+target_include_directories(curve PRIVATE 3rdparty
+                                         3rdparty/glad/include)
