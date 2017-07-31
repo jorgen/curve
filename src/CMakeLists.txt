@@ -9,7 +9,8 @@ add_executable(curve main.cpp
                      vao.h
                      testitem.h
                      testitem.cpp
-                     program.h)
+                     program.h
+                     callback.h)
 
 target_sources(curve PUBLIC 3rdparty/glad/src/glad.c)
 source_group("glade" FILES 3rdparty/glad.c)

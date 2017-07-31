@@ -24,7 +24,7 @@ varying vec2 uv;
 void main()
 {
 	float factor = uv.x * uv.x - uv.y;
-	if (factor > 0)
+	if (factor > 0.0)
 		discard;
 	gl_FragColor = vec4(uv, 1.0, 1.0);
 };

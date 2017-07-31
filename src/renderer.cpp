@@ -47,31 +47,31 @@ void RenderManager::stack(Item *before, Item *after)
 		
 	}
 }
-void RenderManager::setDirtyStateForItem(DirtyState state)
-{
-	dirtyState |= state;
-}
 
 void RenderManager::prepareRender()
 {
+	DirtyState dirtyState = DirtyState::Clean;
 	for (auto item : items)
 	{
-		item->beforeRendering(*this);
+		DirtyState itemDirty = item->beforeRendering(*this);
+		if (itemDirty > dirtyState)
+			dirtyState = itemDirty;
 	}
 
-	if (dirtyState & DirtyState::Reupload)
+	if (dirtyState == DirtyState::Update)
+	{
+		for (auto item : items)
+			item->updateMemory(*this);
+	}
+	else if (dirtyState == DirtyState::Upload)
 	{
 		for (auto item : items)
 		{
-			item->reserveRenderMemory(*this);
+			item->reserveMemory(*this);
 		}
-	}
-
-	if ((dirtyState & DirtyState::Reupload) || (dirtyState & DirtyState::Update))
-	{
 		for (auto item : items)
 		{
-			item->uploadRenderMemory(*this);
+			item->uploadMemory(*this);
 		}
 	}
 }

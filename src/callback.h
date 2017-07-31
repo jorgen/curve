@@ -9,12 +9,12 @@ class RefCounter
 public:
     RefCounter()
         : callbackContainer(nullptr)
-          , index(0)
+		, index(0)
     {}
 
     RefCounter(size_t index, CallbackContainer<T> *callbackContainer)
         : index(index)
-          , callbackContainer(callbackContainer)
+		, callbackContainer(callbackContainer)
     {
         inc();
     }
@@ -70,7 +70,7 @@ public:
     void inc() { ++ref; }
     void dec() { --ref; }
 
-    std::atomic<int> ref;
+    int ref;
     std::function<T> callback;
 };
 
